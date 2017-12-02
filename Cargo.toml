@@ -1,0 +1,16 @@
+[package]
+name = "nine"
+version = "0.2.0"
+description = "The 9p protocol as a serde format and message types."
+authors = ["Kevin M Granger <git@kevinmgranger.me>"]
+license = "MPL-2.0"
+
+[badges.maintenance]
+status = "experimental"
+
+[dependencies]
+serde = "1.0"
+serde_derive = "1.0"
+byteorder = "1.1.0"
+bitflags = "1.0.3"
+failure = "0.1.2"
