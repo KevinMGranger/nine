@@ -1,9 +1,10 @@
 [package]
 name = "nine"
-version = "0.2.0"
+version = "0.2.1"
 description = "The 9p protocol as a serde format and message types."
 authors = ["Kevin M Granger <git@kevinmgranger.me>"]
 license = "MPL-2.0"
+readme = "README.md"
 repository = "https://github.com/KevinMGranger/nine"
 categories = ["parser-implementations"]
 
