@@ -56,3 +56,36 @@ But in the end, what does this get us? The ability to serialize a message withou
 There's plenty of types that don't exist in 9p-- floats, bools, maps, etc. For existing versions of the protocol, we can just ignore that. But part of the purpose of this library is allowing experimentation.
 
 Maybe we can make a trait that requires you to expose what the regular (de)serializer needs, but allows you to implement the (de)serialize methods yourself.
+
+## References
+
+How do we properly handle the strings within the message types?
+
+Right now, they're all `Cow<'static, str>` which makes it easy for development.
+However, I don't think it should stay that way in the long run.
+
+We could make each message have as many lifetimes as there are strings in itself, and Cow each string.
+Or is that too much trouble and they should all just have `String`s?
+
+If we do go with the "one lifetime per string approach", we can always offer a convenience:
+
+```rust
+type CowStr<'a> = Cow<'a, str>;
+pub struct Stat<'n, 'u, 'g, 'm> {
+    pub type_: u16,
+    pub dev: u32,
+    pub qid: Qid,
+    pub mode: FileMode,
+    pub atime: u32,
+    pub mtime: u32,
+    pub length: u64,
+    pub name: CowStr<'n>,
+    pub uid: CowStr<'u>,
+    pub gid: CowStr<'g>,
+    pub muid: CowStr<'m>,
+}
+
+pub mod owned {
+    pub type Stat = super::Stat<'static, 'static, 'static, 'static>;
+}
+```
