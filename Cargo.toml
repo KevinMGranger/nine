@@ -4,6 +4,8 @@ version = "0.2.0"
 description = "The 9p protocol as a serde format and message types."
 authors = ["Kevin M Granger <git@kevinmgranger.me>"]
 license = "MPL-2.0"
+repository = "https://github.com/KevinMGranger/nine"
+categories = ["parser-implementations"]
 
 [badges.maintenance]
 status = "experimental"
