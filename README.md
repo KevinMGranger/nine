@@ -17,6 +17,20 @@ There is _not_ an included server implementation, because
 The purpose of this design is to allow for easy extensibility and experimentation
 with the protocol.
 
+# Client Binary
+
+`nine` can also be used as a simple one-shot 9p client, a-la plan9port's `9p` command.
+
+Currently only non-authed explicitly-attached read to a unix socket is implemented.
+
+## Examples
+
+```bash
+# set up a server to listen at /tmp/9ptest, then:
+$ nine -a /tmp/9ptest read /foo
+bar
+```
+
 # Special Thanks
 
 Casey Rodarmor for collaborating on the initial design.
