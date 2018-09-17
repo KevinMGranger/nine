@@ -31,9 +31,15 @@ impl AsRef<[u8]> for Data {
     }
 }
 
-impl<T: Into<Vec<u8>>> From<T> for Data {
-    fn from(v: T) -> Data {
+impl From<Vec<u8>> for Data {
+    fn from(v: Vec<u8>) -> Data {
         Data(v.into())
+    }
+}
+
+impl From<Data> for Vec<u8> {
+    fn from(d: Data) -> Self {
+        d.0
     }
 }
 

@@ -208,7 +208,7 @@ fn rread() {
     let mut expected_des_buf = Cursor::new(Vec::<u8>::new());
     let expected_msg = Rread {
         tag: 1,
-        data: "hello".as_bytes().into(),
+        data: "hello".to_string().into_bytes().into(),
     };
     expected_des_buf.write_u16::<LE>(expected_msg.tag).unwrap();
     expected_des_buf.write_u32::<LE>(5).unwrap();
