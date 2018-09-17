@@ -365,3 +365,9 @@ impl<'a, 'de: 'a, R: Read + 'a> SeqAccess<'de> for CountedVecReader<'a, R> {
         }
     }
 }
+
+/// Deserialize from any type that implements `io::Read`.
+pub fn from_reader<'de, T: Deserialize<'de>, R: Read>(reader: R) -> Result<T, DeError> {
+    let mut des = ReadDeserializer(reader);
+    <T as Deserialize<'de>>::deserialize(&mut des)
+}

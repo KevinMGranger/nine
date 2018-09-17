@@ -492,3 +492,38 @@ pub fn into_bytes<T: Serialize>(t: &T) -> Vec<u8> {
 
     ser.into_writer().into_inner()
 }
+
+
+/// Serializes the given item into the given type that implements write and seek.
+/// This is typically a file or a buffer.
+/// 
+/// Returns the number of bytes written.
+pub fn into_write_seeker<T: Serialize, W: Write + Seek>(t: &T, writer: W) -> Result<usize, SerError> {
+    let mut ser = WriteSerializer {
+        writer,
+        in_stat: false,
+    };
+
+    t.serialize(&mut ser)
+}
+
+// TODO: document the error conditions better.
+/// Serializes the given item into the given buffer.
+/// 
+/// Returns the number of bytes written.
+/// 
+/// Can fail if the buffer isn't big enough, among other reasons.
+pub fn into_buf<T: Serialize, B: AsMut<[u8]>>(t: &T, mut buf: B) -> Result<usize, SerError> {
+    let writer = Cursor::new(buf.as_mut());
+    into_write_seeker(t, writer)
+}
+
+/// Serializes the given item into the given Vec.
+/// 
+/// Returns the number of bytes written.
+/// 
+/// Will typically not fail because of space issues.
+pub fn into_vec<T: Serialize, V: AsMut<Vec<u8>>>(t: &T, mut vec: V) -> Result<usize, SerError> {
+    let writer = Cursor::new(vec.as_mut());
+    into_write_seeker(t, writer)
+}
