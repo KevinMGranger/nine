@@ -1,6 +1,11 @@
 pub use common::*;
 
-pub const NOTAG: u16 = !0u16;
+pub type Tag = u16;
+pub type Fid = u32;
+pub type IoUnit = u32;
+
+pub const NOTAG: Tag = !0u16;
+pub const NOFID: Fid = !0u32;
 
 bitflags! {
     /// The type of a file. Used within Qids.
@@ -124,96 +129,96 @@ impl Stat {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tversion {
-    pub tag: u16,
+    pub tag: Tag,
     pub msize: u32,
     pub version: CowStr,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rversion {
-    pub tag: u16,
+    pub tag: Tag,
     pub msize: u32,
     pub version: CowStr,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tauth {
-    pub tag: u16,
-    pub afid: u32,
+    pub tag: Tag,
+    pub afid: Fid,
     pub uname: CowStr,
     pub aname: CowStr,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rauth {
-    pub tag: u16,
+    pub tag: Tag,
     pub aqid: Qid,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rerror {
-    pub tag: u16,
+    pub tag: Tag,
     pub ename: CowStr,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tflush {
-    pub tag: u16,
-    pub oldtag: u16,
+    pub tag: Tag,
+    pub oldtag: Tag,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rflush {
-    pub tag: u16,
+    pub tag: Tag,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tattach {
-    pub tag: u16,
-    pub fid: u32,
-    pub afid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
+    pub afid: Fid,
     pub uname: CowStr,
     pub aname: CowStr,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rattach {
-    pub tag: u16,
+    pub tag: Tag,
     pub qid: Qid,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Twalk {
-    pub tag: u16,
-    pub fid: u32,
-    pub newfid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
+    pub newfid: Fid,
     pub wname: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rwalk {
-    pub tag: u16,
+    pub tag: Tag,
     pub wqid: Vec<Qid>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Topen {
-    pub tag: u16,
-    pub fid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
     pub mode: OpenMode,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Ropen {
-    pub tag: u16,
+    pub tag: Tag,
     pub qid: Qid,
-    pub iounit: u32,
+    pub iounit: IoUnit,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tcreate {
-    pub tag: u16,
-    pub fid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
     pub name: CowStr,
     pub perm: FileMode,
     pub mode: OpenMode,
@@ -221,83 +226,83 @@ pub struct Tcreate {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rcreate {
-    pub tag: u16,
+    pub tag: Tag,
     pub qid: Qid,
-    pub iounit: u64,
+    pub iounit: IoUnit,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tread {
-    pub tag: u16,
-    pub fid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
     pub offset: u64,
     pub count: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rread {
-    pub tag: u16,
+    pub tag: Tag,
     pub data: Data,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Twrite {
-    pub tag: u16,
-    pub fid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
     pub offset: u64,
     pub data: Data,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rwrite {
-    pub tag: u16,
+    pub tag: Tag,
     pub count: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tclunk {
-    pub tag: u16,
-    pub fid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rclunk {
-    pub tag: u16,
+    pub tag: Tag,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tremove {
-    pub tag: u16,
-    pub fid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rremove {
-    pub tag: u16,
+    pub tag: Tag,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tstat {
-    pub tag: u16,
-    pub fid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rstat {
-    pub tag: u16,
+    pub tag: Tag,
     pub stat: Stat,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Twstat {
-    pub tag: u16,
-    pub fid: u32,
+    pub tag: Tag,
+    pub fid: Fid,
     pub stat: Stat,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rwstat {
-    pub tag: u16,
+    pub tag: Tag,
 }
 
 message_type_ids! {

@@ -66,7 +66,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "nine"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
