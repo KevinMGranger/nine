@@ -1,3 +1,5 @@
+//! Tests relating to the message types.
+
 extern crate byteorder;
 extern crate nine;
 use byteorder::{WriteBytesExt, LE};
@@ -7,10 +9,9 @@ use nine::p2000::*;
 use nine::ser::*;
 use std::io::{Cursor, Read, Write};
 
-fn test_des<R: Read>(r: R) -> ReadDeserializer<R> {
+fn des<R: Read>(r: R) -> ReadDeserializer<R> {
     ReadDeserializer(r)
 }
-
 
 fn ser() -> WriteSerializer<Cursor<Vec<u8>>> {
     WriteSerializer::new(Cursor::new(Vec::<u8>::new()))
@@ -69,7 +70,7 @@ fn version() {
 
     let expected_ser_buf = des_buf.clone().into_inner();
 
-    let mut des = test_des(des_buf);
+    let mut des = des(des_buf);
 
     let actual_msg: Tversion = Deserialize::deserialize(&mut des).unwrap();
 
@@ -110,7 +111,7 @@ fn rauth() {
 
     let expected_ser_buf = des_buf.clone().into_inner();
 
-    let mut des = test_des(des_buf);
+    let mut des = des(des_buf);
 
     let actual_msg: Rauth = Deserialize::deserialize(&mut des).unwrap();
 
@@ -153,7 +154,7 @@ fn rstat() {
     bytes.set_position(0);
     let expected_ser_buf = bytes.clone().into_inner();
 
-    let mut des = test_des(bytes);
+    let mut des = des(bytes);
 
     let mut serializer = ser();
 
@@ -188,7 +189,7 @@ fn twalk() {
 
     expected_des_buf.set_position(0);
     let expected_ser_buf = expected_des_buf.clone().into_inner();
-    let mut des = test_des(expected_des_buf);
+    let mut des = des(expected_des_buf);
 
     let actual_msg: Twalk = Deserialize::deserialize(&mut des).unwrap();
 
@@ -216,7 +217,7 @@ fn rread() {
     expected_des_buf.set_position(0);
 
     let expected_ser_buf = expected_des_buf.clone().into_inner();
-    let mut des = test_des(expected_des_buf);
+    let mut des = des(expected_des_buf);
 
     let actual_msg = Rread::deserialize(&mut des).unwrap();
 
