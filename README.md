@@ -1,9 +1,10 @@
-# nine &emsp; [![Latest Version]][crates.io] [![Rustc Version 1.34.2]][rustc]
+# nine &emsp; [![Latest Version]][crates.io] [![Rustc Version 1.34.2]][rustc] [![Build Status]][travis_ci]
 
 [Latest Version]: https://img.shields.io/crates/v/nine.svg
 [crates.io]: https://crates.io/crates/nine
 [Rustc Version 1.34.2]: https://img.shields.io/badge/rustc-1.34.2-lightgray.svg
 [rustc]: https://blog.rust-lang.org/2019/05/14/Rust-1.34.2.html
+[travis_ci]: https://travis-ci.com/KevinMGranger/nine
 
 The 9p protocol as a serde format and message types.
 
