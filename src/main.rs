@@ -1,10 +1,10 @@
-extern crate nine;
 extern crate byteorder;
+extern crate nine;
 
-use byteorder::{WriteBytesExt, LittleEndian};
+use byteorder::{LittleEndian, WriteBytesExt};
 use nine::{de::*, p2000::*, ser::*};
 use std::env::{args, var};
-use std::io::{stdout, Read, Write};
+use std::io::{stdin, stdout, BufRead, Read, Write};
 use std::os::unix::net::UnixStream; // TODO: abstract so this still works on windows
 
 trait SimpleClient {
@@ -14,6 +14,7 @@ trait SimpleClient {
     fn stat(&mut self, fid: u32) -> Stat;
     fn open(&mut self, fid: u32, mode: OpenMode) -> (Qid, u32);
     fn read(&mut self, fid: u32, offset: u64, count: u32) -> Vec<u8>;
+    fn write(&mut self, fid: u32, offset: u64, data: Vec<u8>) -> u32;
 }
 
 struct Client<Stream>
@@ -39,10 +40,10 @@ impl<Stream: Write + Read> Client<Stream> {
         self.msg_buf.truncate(0);
         let amt = into_vec(&t, &mut self.msg_buf)?;
 
-        assert!(self.msize as usize >= amt);
-        self.stream.write_u32::<LittleEndian>(amt as u32 + 5)?;
+        assert!(self.msize >= amt);
+        self.stream.write_u32::<LittleEndian>(amt + 5)?;
         self.stream.write_u8(<T as MessageTypeId>::MSG_TYPE_ID)?;
-        Ok(self.stream.write_all(&self.msg_buf[0..amt])?)
+        Ok(self.stream.write_all(&self.msg_buf[0..amt as usize])?)
     }
 
     fn read_msg<'de, T: Deserialize<'de> + MessageTypeId>(&mut self) -> Result<T, DeError> {
@@ -85,7 +86,7 @@ impl<Stream: Write + Read> SimpleClient for Client<Stream> {
         };
 
         self.send_msg(&attach).unwrap();
-        let rattach: Rattach = self.read_msg().unwrap();
+        self.read_msg::<Rattach>().unwrap();
 
         0
     }
@@ -126,7 +127,19 @@ impl<Stream: Write + Read> SimpleClient for Client<Stream> {
         self.send_msg(&read).unwrap();
         let read: Rread = self.read_msg().unwrap();
 
-        read.data.into()
+        read.data
+    }
+    fn write(&mut self, fid: u32, offset: u64, data: Vec<u8>) -> u32 {
+        let twrite = Twrite {
+            tag: 0,
+            fid,
+            offset,
+            data,
+        };
+        self.send_msg(&twrite).unwrap();
+        let rwrite: Rwrite = self.read_msg().unwrap();
+
+        rwrite.count
     }
 }
 
@@ -156,7 +169,12 @@ fn main() {
         }
     }
 
-    let path: Vec<String> = path.unwrap().split('/').filter(|&x| x!="").map(|x| x.to_owned()).collect();
+    let path: Vec<String> = path
+        .unwrap()
+        .split('/')
+        .filter(|&x| x != "")
+        .map(|x| x.to_owned())
+        .collect();
 
     if auth {
         unimplemented!();
@@ -190,9 +208,36 @@ fn main() {
                 stdout.write(bytes.as_ref()).unwrap();
             }
         }
-        "write" => unimplemented!(),
-        "stat" => unimplemented!(),
-        "rdwr" => unimplemented!(),
+        "write" => {
+            let len = path.len();
+            let fid = 1;
+            let qids = client.walk(root, fid, path);
+            assert_eq!(len, qids.len());
+
+            client.open(fid, OpenMode::WRITE);
+
+            // TODO: -l for line by line only
+            let stdin = stdin();
+            let mut offset = 0;
+            for mut line in stdin.lock().lines().map(Result::unwrap) {
+                line.push_str("\n");
+                offset += client.write(fid, offset, line.into_bytes()) as u64;
+            }
+        }
+        "stat" => {
+            // TODO: copy p9p format
+            let len = path.len();
+            let fid = 1;
+            let qids = client.walk(root, fid, path);
+            assert_eq!(len, qids.len());
+
+            let stat = client.stat(fid);
+            println!("{:?}", stat);
+        },
+        "rdwr" => {
+            // TODO: how do you know when you have a 'line' from the file?
+            unimplemented!()
+        },
         "ls" => unimplemented!(),
         "mkdir" => unimplemented!(),
         "touch" => unimplemented!(),

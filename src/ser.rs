@@ -1,4 +1,5 @@
-//! Serialization related code.
+//! Serializers and serializer convenience functions.
+
 use byteorder::{LittleEndian, WriteBytesExt};
 pub use common::*;
 use failure::{Compat, Fail};
@@ -7,6 +8,10 @@ use serde::ser::{self, *};
 use std::error::Error;
 use std::fmt;
 use std::io::{self, Cursor, Seek, SeekFrom, Write};
+use std::{u16, u32};
+
+/// The maximum possible length of a byte array in 9p.
+pub const BYTES_LEN_MAX: u32 = u32::MAX - 8; // 4 for message size, 4 for byte length
 
 /// A custom serialization error.
 #[derive(Debug)]
@@ -24,16 +29,17 @@ impl Error for SerializeError {
     }
 }
 
+/// A failure at the serialization layer.
 #[derive(Fail, Debug)]
 pub enum SerFail {
     #[fail(display = "IO Error: {}", _0)]
     Io(#[cause] io::Error),
     #[fail(display = "Serialize Error: {}", _0)]
     SerializeError(#[cause] SerializeError),
-    #[fail(display = "String was too long by {} bytes", _0)]
-    StringTooLong(usize),
-    #[fail(display = "Byte buffer was too long by {} bytes", _0)]
-    BytesTooLong(usize),
+    #[fail(display = "String was too long")]
+    StringTooLong,
+    #[fail(display = "Byte buffer was too long")]
+    BytesTooLong,
     #[fail(display = "Sequence too long")]
     SeqTooLong,
     #[fail(display = "Total size was bigger than u64")]
@@ -110,39 +116,28 @@ impl<W: Write + Seek> WriteSerializer<W> {
         self.writer
     }
 
-    fn seek_fwd(&mut self, mut amount: usize) -> io::Result<u64> {
-        if amount > u32::max_value() as usize {
-            self.writer
-                .seek(SeekFrom::Current(u32::max_value() as i64))?;
-            amount -= u32::max_value() as usize
-        }
-
+    /// Seek the writer forward the given amount.
+    fn seek_fwd(&mut self, amount: u32) -> io::Result<u64> {
         self.writer.seek(SeekFrom::Current(amount as i64))
     }
 
-    fn seek_back(&mut self, mut amount: usize) -> io::Result<u64> {
-        if amount > u32::max_value() as usize {
-            self.writer
-                .seek(SeekFrom::Current(-(u32::max_value() as i64)))?;
-            amount -= u32::max_value() as usize
-        }
-
+    /// Seek the writer backward the given amount.
+    fn seek_back(&mut self, amount: u32) -> io::Result<u64> {
         self.writer.seek(SeekFrom::Current(-(amount as i64)))
     }
 }
 
-// TODO: serializing non-9p types should not be a panic
 impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
-    type Ok = usize;
+    type Ok = u32;
     type Error = SerError;
 
     type SerializeSeq = CountingSequenceSerializer<'ser, W>;
     type SerializeTuple = AccountingStructSerializer<'ser, W>;
     type SerializeTupleStruct = AccountingStructSerializer<'ser, W>;
-    type SerializeTupleVariant = AccountingStructSerializer<'ser, W>;
+    type SerializeTupleVariant = Unimplemented;
     type SerializeMap = Unimplemented;
     type SerializeStruct = AccountingStructSerializer<'ser, W>;
-    type SerializeStructVariant = AccountingStructSerializer<'ser, W>;
+    type SerializeStructVariant = Unimplemented;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
         self.writer.write_u8(v as u8)?;
@@ -190,31 +185,22 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
         Err(SerFail::UnspecifiedType("char").into())
     }
     fn serialize_str(self, s: &str) -> Result<Self::Ok, Self::Error> {
-        const STR_MAX: usize = u16::max_value() as usize;
-        let len = s.len();
-
-        if len > STR_MAX {
-            return Err(SerFail::StringTooLong(len - STR_MAX).into())
+        if s.len() > u16::MAX as usize {
+            return Err(SerFail::StringTooLong.into());
         }
-
-        let len = len as u16;
+        let len = s.len() as u16;
         self.writer.write_u16::<LittleEndian>(len)?;
         self.writer.write(s.as_bytes())?;
 
-        Ok(len as usize + 2)
+        Ok(len as u32 + 2)
     }
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        const BYTE_MAX: usize = u32::max_value() as usize;
-        let len = v.len();
-
-        if len > BYTE_MAX {
-            return Err(SerFail::BytesTooLong(len - BYTE_MAX).into());
+        if v.len() > BYTES_LEN_MAX as usize {
+            return Err(SerFail::BytesTooLong.into());
         }
-
-        let len = len as u32;
-        self.writer.write_u32::<LittleEndian>(len as u32)?;
+        self.writer.write_u32::<LittleEndian>(v.len() as u32)?;
         self.writer.write_all(v)?;
-        Ok(len as usize + 4)
+        Ok(v.len() as u32 + 4)
     }
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
         Err(SerFail::UnspecifiedType("none").into())
@@ -261,7 +247,13 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
     {
         Err(SerFail::UnspecifiedType("newtype variant").into())
     }
-    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+        if let Some(len) = len {
+            if len > u16::MAX as usize {
+                return Err(SerFail::SeqTooLong.into());
+            }
+        }
+
         self.seek_fwd(2)?;
         Ok(CountingSequenceSerializer {
             serializer: self,
@@ -272,7 +264,7 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
         Ok(AccountingStructSerializer {
             serializer: self,
-            running_total: 0,
+            byte_count: 0,
             size_behavior: StructSizeBehavior::None,
         })
     }
@@ -283,7 +275,7 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
         Ok(AccountingStructSerializer {
             serializer: self,
-            running_total: 0,
+            byte_count: 0,
             size_behavior: StructSizeBehavior::None,
         })
     }
@@ -321,7 +313,7 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
 
         Ok(AccountingStructSerializer {
             serializer: self,
-            running_total: 0,
+            byte_count: 0,
             size_behavior,
         })
     }
@@ -340,17 +332,17 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
     }
 }
 
-/// A sequence serializer that counts how many items it gets and then prefixes
-/// with the 2-byte count.
+/// A sequence serializer that counts how many items it
+/// gets and then prefixes with the 2-byte count.
 #[derive(Debug)]
 pub struct CountingSequenceSerializer<'ser, W: 'ser + Write + Seek> {
     serializer: &'ser mut WriteSerializer<W>,
     current_count: u16,
-    byte_count: usize,
+    byte_count: u32,
 }
 
 impl<'ser, W: 'ser + Write + Seek> SerializeSeq for CountingSequenceSerializer<'ser, W> {
-    type Ok = usize;
+    type Ok = u32;
     type Error = SerError;
 
     fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
@@ -361,25 +353,21 @@ impl<'ser, W: 'ser + Write + Seek> SerializeSeq for CountingSequenceSerializer<'
             .current_count
             .checked_add(1)
             .ok_or(SerFail::SeqTooLong)?;
-        self.byte_count = self
-            .byte_count
-            .checked_add(value.serialize(&mut *self.serializer)?)
-            .ok_or(SerFail::TooBig)?;
+        let amt = value.serialize(&mut *self.serializer)?;
+        self.byte_count = self.byte_count.checked_add(amt).ok_or(SerFail::TooBig)?;
         Ok(())
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        // TODO: this can be converted safely (multiple seeks (make a helper func))
         self.serializer.seek_back(self.byte_count)?;
         self.serializer.seek_back(2)?;
         self.current_count.serialize(&mut *self.serializer)?;
         self.serializer.seek_fwd(self.byte_count)?;
-        Ok(self.byte_count + 2)
+        self.byte_count.checked_add(2).ok_or(SerFail::TooBig.into())
     }
 }
 
-/// There are two special cases for nested structs in 9p messages, and they're both
-/// Stat.
+/// Tells a sub-serializer how to handle size-prefixing a struct.
 #[derive(Debug)]
 enum StructSizeBehavior {
     /// A stat is being serialized to be sent for a directory read.
@@ -388,7 +376,7 @@ enum StructSizeBehavior {
     /// A stat is being serialized for a stat-related message (twstat or rstat).
     /// Its binary representation is prefixed with yet another two-byte size.
     DoubleTwo,
-    /// This struct is not a Stat. Ignore the above.
+    /// This struct is not a Stat. Do not size-prefix.
     None,
 }
 
@@ -396,12 +384,12 @@ enum StructSizeBehavior {
 #[derive(Debug)]
 pub struct AccountingStructSerializer<'ser, W: 'ser + Write + Seek> {
     serializer: &'ser mut WriteSerializer<W>,
-    running_total: usize,
+    byte_count: u32,
     size_behavior: StructSizeBehavior,
 }
 
 impl<'ser, W: 'ser + Write + Seek> SerializeStruct for AccountingStructSerializer<'ser, W> {
-    type Ok = usize;
+    type Ok = u32;
     type Error = SerError;
     fn serialize_field<T: ?Sized>(
         &mut self,
@@ -418,44 +406,54 @@ impl<'ser, W: 'ser + Write + Seek> SerializeStruct for AccountingStructSerialize
     }
 }
 
+const STRUCT_SIZE_TWO_MAX: u32 = u16::MAX as u32 - 2;
+const STRUCT_SIZE_DOUBLE_TWO_MAX: u32 = u16::MAX as u32 - 4;
+
 impl<'ser, W: 'ser + Write + Seek> SerializeTuple for AccountingStructSerializer<'ser, W> {
-    type Ok = usize;
+    type Ok = u32;
     type Error = SerError;
     fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
-        self.running_total = self
-            .running_total
-            .checked_add(value.serialize(&mut *self.serializer)?)
-            .ok_or(SerFail::TooBig)?;
-        Ok(())
+        let amount = value.serialize(&mut *self.serializer)?;
+        self.byte_count = self.byte_count.checked_add(amount).ok_or(SerFail::TooBig)?;
+
+        // TODO: is it quicker to check during end instead?
+        match self.size_behavior {
+            StructSizeBehavior::Two if self.byte_count > STRUCT_SIZE_TWO_MAX => {
+                Err(SerFail::TooBig.into())
+            }
+            StructSizeBehavior::DoubleTwo if self.byte_count > STRUCT_SIZE_DOUBLE_TWO_MAX => {
+                Err(SerFail::TooBig.into())
+            }
+            _ => Ok(()),
+        }
     }
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        // TODO: this can be converted safely (multiple seeks (make a helper func))
         Ok(match self.size_behavior {
-            StructSizeBehavior::None => self.running_total,
+            StructSizeBehavior::None => self.byte_count,
             StructSizeBehavior::Two => {
-                self.serializer.seek_back(self.running_total)?;
+                self.serializer.seek_back(self.byte_count)?;
                 self.serializer.seek_back(2)?;
-                (self.running_total as u16).serialize(&mut *self.serializer)?;
-                self.serializer.seek_fwd(self.running_total)?;
-                self.running_total + 2
+                (self.byte_count as u16).serialize(&mut *self.serializer)?;
+                self.serializer.seek_fwd(self.byte_count)?;
+                self.byte_count + 2
             }
             StructSizeBehavior::DoubleTwo => {
-                self.serializer.seek_back(self.running_total)?;
+                self.serializer.seek_back(self.byte_count)?;
                 self.serializer.seek_back(4)?;
-                (self.running_total as u16 + 2).serialize(&mut *self.serializer)?;
-                (self.running_total as u16 + 0).serialize(&mut *self.serializer)?;
-                self.serializer.seek_fwd(self.running_total)?;
-                self.running_total + 4
+                (self.byte_count as u16 + 2).serialize(&mut *self.serializer)?;
+                (self.byte_count as u16 + 0).serialize(&mut *self.serializer)?;
+                self.serializer.seek_fwd(self.byte_count)?;
+                self.byte_count + 4
             }
         })
     }
 }
 
 impl<'ser, W: 'ser + Write + Seek> SerializeTupleStruct for AccountingStructSerializer<'ser, W> {
-    type Ok = usize;
+    type Ok = u32;
     type Error = SerError;
     fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
@@ -468,22 +466,46 @@ impl<'ser, W: 'ser + Write + Seek> SerializeTupleStruct for AccountingStructSeri
     }
 }
 
-impl<'ser, W: 'ser + Write + Seek> SerializeTupleVariant for AccountingStructSerializer<'ser, W> {
-    type Ok = usize;
+/// Stand-in code for types of serialization that will never happen
+/// because the types are unspecified.
+pub enum Unimplemented {}
+
+impl SerializeMap for Unimplemented {
+    type Ok = u32;
     type Error = SerError;
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    fn serialize_key<T: ?Sized>(&mut self, _key: &T) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
-        SerializeTuple::serialize_element(self, value)
+        unreachable!()
+    }
+    fn serialize_value<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
+    where
+        T: Serialize,
+    {
+        unreachable!()
     }
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        SerializeTuple::end(self)
+        unreachable!()
     }
 }
 
-impl<'ser, W: 'ser + Write + Seek> SerializeStructVariant for AccountingStructSerializer<'ser, W> {
-    type Ok = usize;
+impl SerializeTupleVariant for Unimplemented {
+    type Ok = u32;
+    type Error = SerError;
+    fn serialize_field<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
+    where
+        T: Serialize,
+    {
+        unreachable!()
+    }
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        unreachable!()
+    }
+}
+
+impl SerializeStructVariant for Unimplemented {
+    type Ok = u32;
     type Error = SerError;
     fn serialize_field<T: ?Sized>(
         &mut self,
@@ -493,58 +515,39 @@ impl<'ser, W: 'ser + Write + Seek> SerializeStructVariant for AccountingStructSe
     where
         T: Serialize,
     {
-        unimplemented!()
+        unreachable!()
     }
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
-    }
-}
-
-/// Stand-in code for types of serialization that will never happen.
-pub enum Unimplemented {}
-
-impl SerializeMap for Unimplemented {
-    type Ok = usize;
-    type Error = SerError;
-    fn serialize_key<T: ?Sized>(&mut self, _key: &T) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unimplemented!()
-    }
-    fn serialize_value<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unimplemented!()
-    }
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
+        unreachable!()
     }
 }
 
 // TODO: this is mainly used for converting stat calls.
 // It should take a ref to the writer, which would be the existing buffer on the dir.
-/// Serialize the given object into a new vec buffer and return the result.
-pub fn into_bytes<T: Serialize>(t: &T) -> Vec<u8> {
+//
+/// Serialize the given object into a new vec buffer.
+/// ```
+/// # use nine::ser::*;
+/// use nine::p2000::Rerror;
+/// let version = Rerror { tag: 0, ename: "foo".into() };
+/// let bytes: Vec<u8> = into_bytes(&version).unwrap();
+/// ```
+pub fn into_bytes<T: Serialize>(t: &T) -> Result<Vec<u8>, SerError> {
     let mut ser = WriteSerializer {
         writer: Cursor::new(Vec::new()),
         in_stat: false,
     };
 
-    t.serialize(&mut ser).unwrap();
+    let res = t.serialize(&mut ser);
 
-    ser.into_writer().into_inner()
+    res.map(|_| ser.into_writer().into_inner())
 }
 
 /// Serializes the given item into the given type that implements write and seek.
-/// This is typically a file or a buffer.
+/// This is typically a file or a buffer (`io::Cursor<Vec<u8>>`).
 ///
 /// Returns the number of bytes written.
-pub fn into_write_seeker<T: Serialize, W: Write + Seek>(
-    t: &T,
-    writer: W,
-) -> Result<usize, SerError> {
+pub fn into_write_seeker<T: Serialize, W: Write + Seek>(t: &T, writer: W) -> Result<u32, SerError> {
     let mut ser = WriteSerializer {
         writer,
         in_stat: false,
@@ -558,8 +561,16 @@ pub fn into_write_seeker<T: Serialize, W: Write + Seek>(
 ///
 /// Returns the number of bytes written.
 ///
-/// Can fail if the buffer isn't big enough, among other reasons.
-pub fn into_buf<T: Serialize, B: AsMut<[u8]>>(t: &T, mut buf: B) -> Result<usize, SerError> {
+/// Can fail if the buffer isn't big enough.
+/// ```
+/// # use nine::ser::*;
+/// use nine::p2000::Rerror;
+/// let mut buf = [0u8; 31];
+/// let err = Rerror { tag: 0, ename: "foo".into() };
+/// let amount = into_buf(&err, &mut buf).unwrap();
+/// let serialized_message = &buf[0..amount as usize];
+/// ```
+pub fn into_buf<T: Serialize, B: AsMut<[u8]>>(t: &T, mut buf: B) -> Result<u32, SerError> {
     let writer = Cursor::new(buf.as_mut());
     into_write_seeker(t, writer)
 }
@@ -569,10 +580,14 @@ pub fn into_buf<T: Serialize, B: AsMut<[u8]>>(t: &T, mut buf: B) -> Result<usize
 /// Returns the number of bytes written.
 ///
 /// Will typically not fail because of space issues.
-pub fn into_vec<T: Serialize, V: AsMut<Vec<u8>>>(
-    t: &T,
-    mut vec: V,
-) -> Result<usize, SerError> {
+/// ```
+/// # use nine::ser::*;
+/// use nine::p2000::Rerror;
+/// let mut buf = Vec::new();
+/// let err = Rerror { tag: 0, ename: "foo".into() };
+/// let amount = into_vec(&err, &mut buf).unwrap();
+/// ```
+pub fn into_vec<T: Serialize, V: AsMut<Vec<u8>>>(t: &T, mut vec: V) -> Result<u32, SerError> {
     let writer = Cursor::new(vec.as_mut());
     into_write_seeker(t, writer)
 }

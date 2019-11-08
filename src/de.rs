@@ -1,14 +1,15 @@
-//! Deserialization related code.
-pub use serde::de::Deserialize;
-use serde::de::{self, DeserializeSeed, Deserializer, SeqAccess, Visitor};
+//! Deserializers and deserializer convenience functions.
+
 use byteorder::{LittleEndian, ReadBytesExt};
 use failure::{Compat, Fail};
+
+pub use serde::de::Deserialize;
+use serde::de::{self, DeserializeSeed, Deserializer, SeqAccess, Visitor};
 use std::error::Error;
 use std::fmt;
-use std::io::{self, Read};
+use std::io::{self, Cursor, Read};
 use std::string::FromUtf8Error;
 
-// TODO: represent the other deserialize errors as well?
 /// A custom deserialize error.
 #[derive(Debug)]
 pub struct DeserializeError(String);
@@ -37,6 +38,9 @@ pub enum DeFail {
     /// An error came from the deserialize impl.
     #[fail(display = "Deserialize Error: {}", _0)]
     DeserializeError(#[cause] DeserializeError),
+    /// The serde type is unspecified in 9p.
+    #[fail(display = "Type {} is unspecified in 9p", _0)]
+    UnspecifiedType(&'static str),
 }
 
 impl DeFail {
@@ -69,7 +73,7 @@ impl From<FromUtf8Error> for DeFail {
 }
 
 /// A wrapper for a `DeFail` that has it implement `std::error::Error`.
-///This is necessary because of the blanket impl of `Fail` for `std::error::Error`,
+/// This is necessary because of the blanket impl of `Fail` for `std::error::Error`,
 /// and because `Deserializer` requires the error type to implement `std::error::Error`.
 pub struct DeError(pub Compat<DeFail>);
 
@@ -101,7 +105,6 @@ impl de::Error for DeError {
     }
 }
 
-
 impl<T> From<T> for DeError
 where
     T: Into<DeFail>,
@@ -117,7 +120,6 @@ pub struct ReadDeserializer<R: Read>(pub R);
 
 type ORD = LittleEndian;
 
-// TODO: deserializing data types that don't appear in 9p shouldn't be a panic.
 impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     type Error = DeError;
 
@@ -125,7 +127,7 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     // for protocol sets? No need for Length::Zero since messages wouldn't go through
     // deserialize_struct directly
     fn deserialize_any<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("any").into())
     }
 
     // TODO: do bools actually appear anywhere in 9p?
@@ -178,27 +180,27 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("f32").into())
     }
     fn deserialize_f64<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("f64").into())
     }
 
     fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("char").into())
     }
 
-    fn deserialize_str<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        self.deserialize_string(visitor)
     }
 
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -212,11 +214,11 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
 
         visitor.visit_byte_buf(buf)
     }
-    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        self.deserialize_byte_buf(visitor)
     }
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
@@ -235,13 +237,13 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("option").into())
     }
     fn deserialize_unit<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("unit").into())
     }
     fn deserialize_unit_struct<V>(
         self,
@@ -251,7 +253,7 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("unit_struct").into())
     }
     fn deserialize_newtype_struct<V>(
         self,
@@ -294,7 +296,7 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("map").into())
     }
     fn deserialize_struct<V>(
         self,
@@ -320,19 +322,19 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("enum").into())
     }
     fn deserialize_identifier<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("identifier").into())
     }
     fn deserialize_ignored_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(DeFail::UnspecifiedType("ignored_any").into())
     }
 }
 
@@ -369,5 +371,19 @@ impl<'a, 'de: 'a, R: Read + 'a> SeqAccess<'de> for CountedVecReader<'a, R> {
 /// Deserialize from any type that implements `io::Read`.
 pub fn from_reader<'de, T: Deserialize<'de>, R: Read>(reader: R) -> Result<T, DeError> {
     let mut des = ReadDeserializer(reader);
+    <T as Deserialize<'de>>::deserialize(&mut des)
+}
+
+/// Deserialize from any byte slice.
+/// ```
+/// # use nine::de::*;
+///
+/// let bytes = [1u8, 0u8];
+/// let num: u16 = from_bytes(&bytes).unwrap();
+/// assert_eq!(num, 1u16);
+/// ```
+pub fn from_bytes<'de, T: Deserialize<'de>, B: AsRef<[u8]>>(bytes: B) -> Result<T, DeError> {
+    let cursor = Cursor::new(bytes.as_ref());
+    let mut des = ReadDeserializer(cursor);
     <T as Deserialize<'de>>::deserialize(&mut des)
 }

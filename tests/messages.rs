@@ -45,7 +45,7 @@ fn write_str<W: Write + WriteBytesExt>(w: &mut W, s: &str) {
 }
 
 fn write_stat<W: Write + WriteBytesExt>(bytes: &mut W, s: &Stat) {
-    bytes.write_u16::<LE>(stat_len(s)+2).unwrap();
+    bytes.write_u16::<LE>(stat_len(s) + 2).unwrap();
     bytes.write_u16::<LE>(stat_len(s)).unwrap();
     bytes.write_u16::<LE>(s.type_).unwrap();
     bytes.write_u32::<LE>(s.dev).unwrap();
@@ -209,11 +209,11 @@ fn rread() {
     let mut expected_des_buf = Cursor::new(Vec::<u8>::new());
     let expected_msg = Rread {
         tag: 1,
-        data: "hello".to_string().into_bytes().into(),
+        data: "hello".to_string().into_bytes()
     };
     expected_des_buf.write_u16::<LE>(expected_msg.tag).unwrap();
     expected_des_buf.write_u32::<LE>(5).unwrap();
-    expected_des_buf.write(&expected_msg.data.0).unwrap();
+    expected_des_buf.write(&expected_msg.data).unwrap();
     expected_des_buf.set_position(0);
 
     let expected_ser_buf = expected_des_buf.clone().into_inner();

@@ -1,91 +1,68 @@
 //! `common` contains types useful across multiple protocol versions.
+//! You shouldn't need to use it unless you're making your own.
 
 use serde::{
-    de::{Deserialize, Deserializer, Visitor}, ser::{Serialize, Serializer},
+    de::{Deserializer, Visitor},
+    ser::Serializer,
 };
 use std::borrow::Cow;
+use std::convert::AsRef;
 use std::error::Error;
 use std::fmt::{self, Formatter};
-use std::ops::Deref;
-use std::convert::AsRef;
+use std::marker::PhantomData;
 
 /// A CowStr allows hard-coded strings to be used in places.
 pub type CowStr = Cow<'static, str>;
 
-/// Data wraps a Vec<u8> so that a deserializer's deserialize_byte_buf
-/// is used instead of treating it like any other sequence.
-#[derive(Debug, PartialEq, Eq)]
-pub struct Data(pub Vec<u8>);
+/// A visitor that converts byte slices / vecs into the desired type
+struct GimmeBytesVisitor<T>(PhantomData<T>);
 
-impl Deref for Data {
-    type Target = Vec<u8>;
+impl<'de, T> Visitor<'de> for GimmeBytesVisitor<T>
+where
+    for<'a> T: From<Vec<u8>> + From<&'a [u8]>,
+{
+    type Value = T;
+    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+        write!(formatter, "some sorta bytes")
+    }
 
-    fn deref(&self) -> &Vec<u8> {
-        &self.0
+    fn visit_bytes<E: Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+        Ok(v.into())
+    }
+
+    fn visit_borrowed_bytes<E: Error>(self, v: &'de [u8]) -> Result<Self::Value, E> {
+        Ok(v.into())
+    }
+
+    fn visit_byte_buf<E: Error>(self, v: Vec<u8>) -> Result<Self::Value, E> {
+        Ok(v.into())
     }
 }
 
-impl AsRef<[u8]> for Data {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
+// TODO: support cow and ref
+/// A deserialize function that produces a Vec<u8> using the correct deserializer method.
+pub fn deserialize_owned_bytes<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_byte_buf(GimmeBytesVisitor(PhantomData))
 }
 
-impl From<Vec<u8>> for Data {
-    fn from(v: Vec<u8>) -> Data {
-        Data(v.into())
-    }
+/// A serializer function that serializes any byte slice like object.
+pub fn serialize_bytes<T, S>(t: &T, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+    T: AsRef<[u8]>,
+{
+    serializer.serialize_bytes(t.as_ref())
 }
 
-impl From<Data> for Vec<u8> {
-    fn from(d: Data) -> Self {
-        d.0
-    }
-}
-
-impl<'de> Deserialize<'de> for Data {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct GimmeBytesVisitor;
-
-        impl<'de> Visitor<'de> for GimmeBytesVisitor {
-            type Value = Data;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "some sorta bytes")
-            }
-
-            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-            where
-                E: Error,
-            {
-                Ok(Data(v.into()))
-            }
-
-            fn visit_borrowed_bytes<E: Error>(self, v: &'de [u8]) -> Result<Self::Value, E> {
-                Ok(Data(v.into()))
-            }
-
-            fn visit_byte_buf<E: Error>(self, v: Vec<u8>) -> Result<Self::Value, E> {
-                Ok(Data(v))
-            }
-        }
-
-        deserializer.deserialize_byte_buf(GimmeBytesVisitor)
-    }
-}
-
-impl Serialize for Data {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_bytes(&self.0)
-    }
-}
-
-/// Each message type has an associate type ID.
+/// An implementer of MessageTypeId has a u8 ID.
 pub trait MessageTypeId {
     const MSG_TYPE_ID: u8;
 
+    /// Get self's ID.
+    /// Does not need to be implemented.
     fn msg_type_id(&self) -> u8 {
         Self::MSG_TYPE_ID
     }

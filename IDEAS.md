@@ -47,15 +47,19 @@ fn version(&mut self, msg: Tversion) -> Result<Rversion>;
 
 ## Ahead of time lengths
 
-We have to do length computation at serialize time because we can't specialize for structs (unless we manually implemented Serialize, which would defeat half of the point of this library, and make the types strange for other formats to deal with). This would be easier with specialization.
+~~We have to do length computation at serialize time because we can't specialize for structs (unless we manually implemented Serialize, which would defeat half of the point of this library, and make the types strange for other formats to deal with). This would be easier with specialization.~~
 
-But in the end, what does this get us? The ability to serialize a message without using a buffer-- but wouldn't we always want to use a buffer anyway?
+~~But in the end, what does this get us? The ability to serialize a message without using a buffer-- but wouldn't we always want to use a buffer anyway?~~
+
+We can make a _separate serializer_ that just does length computation!
 
 ## Protocol extension
 
 There's plenty of types that don't exist in 9p-- floats, bools, maps, etc. For existing versions of the protocol, we can just ignore that. But part of the purpose of this library is allowing experimentation.
 
-Maybe we can make a trait that requires you to expose what the regular (de)serializer needs, but allows you to implement the (de)serialize methods yourself.
+~~Maybe we can make a trait that requires you to expose what the regular (de)serializer needs, but allows you to implement the (de)serialize methods yourself.~~
+
+I forgot about deserialize_with.
 
 ## References
 
@@ -64,28 +68,7 @@ How do we properly handle the strings within the message types?
 Right now, they're all `Cow<'static, str>` which makes it easy for development.
 However, I don't think it should stay that way in the long run.
 
-We could make each message have as many lifetimes as there are strings in itself, and Cow each string.
-Or is that too much trouble and they should all just have `String`s?
+Each message could/should be generic over the string type.
+I'd have to see how having that "hidden lifetime" works with the deserializer, though.
 
-If we do go with the "one lifetime per string approach", we can always offer a convenience:
-
-```rust
-type CowStr<'a> = Cow<'a, str>;
-pub struct Stat<'n, 'u, 'g, 'm> {
-    pub type_: u16,
-    pub dev: u32,
-    pub qid: Qid,
-    pub mode: FileMode,
-    pub atime: u32,
-    pub mtime: u32,
-    pub length: u64,
-    pub name: CowStr<'n>,
-    pub uid: CowStr<'u>,
-    pub gid: CowStr<'g>,
-    pub muid: CowStr<'m>,
-}
-
-pub mod owned {
-    pub type Stat = super::Stat<'static, 'static, 'static, 'static>;
-}
-```
+And I'd need to look at how the serde magic works with generic stuff. Maybe I'd need to write my own functions for it.
