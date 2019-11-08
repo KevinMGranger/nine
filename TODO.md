@@ -3,6 +3,7 @@
 In decreasing order of importance:
 
 - [ ] figure out how/if to do datetime stuff
+- [ ] switch away from error handling libs in favor of a custom implementation
 
 Undecided importance:
 
