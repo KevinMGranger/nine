@@ -76,8 +76,13 @@ impl Error for SerError {
         self.0.description()
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
+        #[allow(deprecated)]
         Error::cause(&self.0)
+    }
+
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Error::source(&self.0)
     }
 }
 

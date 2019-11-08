@@ -200,7 +200,7 @@ fn main() {
             let stat = client.stat(fid);
             client.open(fid, OpenMode::READ);
 
-            let mut file_size = stat.length;
+            let file_size = stat.length;
             let mut offset = 0;
             while offset < file_size {
                 let bytes = client.read(fid, 0, u32::max_value().min(file_size as u32));
