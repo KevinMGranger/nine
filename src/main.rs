@@ -82,7 +82,7 @@ impl<Stream: Write + Read> SimpleClient for Client<Stream> {
             fid: 0,
             afid: !0,
             uname: uname.into(),
-            aname: "/".into(),
+            aname: "".into(),
         };
 
         self.send_msg(&attach).unwrap();
