@@ -5,14 +5,10 @@ use serde::{
     de::{Deserializer, Visitor},
     ser::Serializer,
 };
-use std::borrow::Cow;
 use std::convert::AsRef;
 use std::error::Error;
 use std::fmt::{self, Formatter};
 use std::marker::PhantomData;
-
-/// A CowStr allows hard-coded strings to be used in places.
-pub type CowStr = Cow<'static, str>;
 
 /// A visitor that converts byte slices / vecs into the desired type
 struct GimmeBytesVisitor<T>(PhantomData<T>);
@@ -39,7 +35,7 @@ where
     }
 }
 
-// TODO: support cow and ref
+
 /// A deserialize function that produces a Vec<u8> using the correct deserializer method.
 pub fn deserialize_owned_bytes<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where

@@ -103,10 +103,10 @@ pub struct Stat {
     pub atime: u32,
     pub mtime: u32,
     pub length: u64,
-    pub name: CowStr,
-    pub uid: CowStr,
-    pub gid: CowStr,
-    pub muid: CowStr,
+    pub name: String,
+    pub uid: String,
+    pub gid: String,
+    pub muid: String,
 }
 
 impl Stat {
@@ -131,22 +131,22 @@ impl Stat {
 pub struct Tversion {
     pub tag: u16,
     pub msize: u32,
-    pub version: CowStr,
+    pub version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rversion {
     pub tag: u16,
     pub msize: u32,
-    pub version: CowStr,
+    pub version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tauth {
     pub tag: u16,
     pub afid: u32,
-    pub uname: CowStr,
-    pub aname: CowStr,
+    pub uname: String,
+    pub aname: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -158,7 +158,7 @@ pub struct Rauth {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Rerror {
     pub tag: u16,
-    pub ename: CowStr,
+    pub ename: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -177,8 +177,8 @@ pub struct Tattach {
     pub tag: u16,
     pub fid: u32,
     pub afid: u32,
-    pub uname: CowStr,
-    pub aname: CowStr,
+    pub uname: String,
+    pub aname: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -219,7 +219,7 @@ pub struct Ropen {
 pub struct Tcreate {
     pub tag: u16,
     pub fid: u32,
-    pub name: CowStr,
+    pub name: String,
     pub perm: FileMode,
     pub mode: OpenMode,
 }
