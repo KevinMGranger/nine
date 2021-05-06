@@ -3,6 +3,7 @@ pub use super::{
     Rwalk, Rwrite, Rwstat, Tclunk, Tcreate, Tflush, Topen, Tread, Tremove, Tstat, Tversion, Twalk,
     Twrite, Twstat,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tauth {

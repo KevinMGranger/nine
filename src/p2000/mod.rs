@@ -3,7 +3,9 @@
 pub mod u;
 pub mod l;
 
-pub use common::*;
+pub use crate::common::*;
+use serde::{Deserialize, Serialize};
+use bitflags::bitflags;
 
 /// The tag number used to represent that tags are irrelevant for this message.
 pub const NOTAG: u16 = !0u16;

@@ -1,7 +1,7 @@
 //! Serializers and serializer convenience functions.
 
 use byteorder::{LittleEndian, WriteBytesExt};
-pub use common::*;
+pub use crate::common::*;
 use failure::{Compat, Fail};
 pub use serde::ser::Serialize;
 use serde::ser::{self, *};

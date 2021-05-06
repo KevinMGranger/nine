@@ -5,7 +5,7 @@ mod util;
 use nine::ser::*;
 use std::iter::repeat;
 use std::{u16, u32};
-use util::BlackHoleWriter;
+use crate::util::BlackHoleWriter;
 
 fn ser() -> WriteSerializer<BlackHoleWriter> {
     WriteSerializer::new(BlackHoleWriter)

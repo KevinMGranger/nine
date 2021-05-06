@@ -1,4 +1,3 @@
-extern crate byteorder;
 extern crate nine;
 
 use byteorder::{LittleEndian, WriteBytesExt};
