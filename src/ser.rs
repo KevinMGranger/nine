@@ -534,3 +534,23 @@ pub fn into_vec<T: Serialize, V: AsMut<Vec<u8>>>(t: &T, mut vec: V) -> Result<u3
     let writer = Cursor::new(vec.as_mut());
     into_write_seeker(t, writer)
 }
+
+/// Serializes the given item at the _end_ of the given Vec.
+///
+/// Returns the number of bytes written.
+///
+/// Will typically not fail because of space issues.
+/// ```
+/// # use nine::ser::*;
+/// use nine::p2000::Rerror;
+/// let mut buf = Vec::new();
+/// let err = Rerror { tag: 0, ename: "foo".into() };
+/// let amount = append_vec(&err, &mut buf).unwrap();
+/// ```
+pub fn append_vec<T: Serialize, V: AsMut<Vec<u8>>>(t: &T, mut vec: V) -> Result<u32, SerError> {
+    let vec = vec.as_mut();
+    let pos = vec.len();
+    let mut writer = Cursor::new(vec);
+    writer.seek(SeekFrom::Start(pos as u64)).unwrap();
+    into_write_seeker(t, writer)
+}

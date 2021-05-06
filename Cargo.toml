@@ -1,6 +1,6 @@
 [package]
 name = "nine"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2018"
 description = "The 9p protocol as a serde format and message types."
 authors = ["Kevin M Granger <git@kevinmgranger.me>"]
