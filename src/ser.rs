@@ -2,10 +2,9 @@
 
 use byteorder::{LittleEndian, WriteBytesExt};
 pub use crate::common::*;
-use failure::{Compat, Fail};
 pub use serde::ser::Serialize;
 use serde::ser::{self, *};
-use std::error::Error;
+use thiserror::Error;
 use std::fmt;
 use std::io::{self, Cursor, Seek, SeekFrom, Write};
 use std::{u16, u32};
@@ -14,91 +13,28 @@ use std::{u16, u32};
 pub const BYTES_LEN_MAX: u32 = u32::MAX - 8; // 4 for message size, 4 for byte length
 
 //region Error Handling
-/// A custom serialization error.
-#[derive(Debug)]
-pub struct SerializeError(String);
-
-impl fmt::Display for SerializeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Error for SerializeError {
-    fn description(&self) -> &str {
-        &self.0
-    }
-}
-
 /// A failure at the serialization layer.
-#[derive(Fail, Debug)]
-pub enum SerFail {
-    #[fail(display = "IO Error: {}", _0)]
-    Io(#[cause] io::Error),
-    #[fail(display = "Serialize Error: {}", _0)]
-    SerializeError(#[cause] SerializeError),
-    #[fail(display = "String was too long")]
+#[derive(Error, Debug)]
+pub enum SerError {
+    #[error("IO Error: {0}")]
+    Io(#[from] io::Error),
+    #[error("Serialize Error: {0}")]
+    SerializeError(String),
+    #[error("String was too long")]
     StringTooLong,
-    #[fail(display = "Byte buffer was too long")]
+    #[error("Byte buffer was too long")]
     BytesTooLong,
-    #[fail(display = "Sequence too long")]
+    #[error("Sequence too long")]
     SeqTooLong,
-    #[fail(display = "Total size was bigger than u64")]
+    #[error("Total size was bigger than u64")]
     TooBig,
-    #[fail(display = "Type {} is unspecified in 9p", _0)]
+    #[error("Type {0} is unspecified in 9p")]
     UnspecifiedType(&'static str),
-}
-
-impl From<io::Error> for SerFail {
-    fn from(src: io::Error) -> Self {
-        SerFail::Io(src)
-    }
-}
-
-/// A wrapper for a `SerFail` that has it implement `std::error::Error`.
-/// This is necessary because of the blanket impl of `Fail` for `std::error::Error`,
-/// and because `Serializer` requires the error type to implement `std::error::Error`.
-pub struct SerError(pub Compat<SerFail>);
-
-impl fmt::Display for SerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        self.0.fmt(f)
-    }
-}
-
-impl fmt::Debug for SerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        self.0.fmt(f)
-    }
-}
-
-impl Error for SerError {
-    fn description(&self) -> &str {
-        self.0.description()
-    }
-
-    fn cause(&self) -> Option<&dyn Error> {
-        #[allow(deprecated)]
-        Error::cause(&self.0)
-    }
-
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Error::source(&self.0)
-    }
 }
 
 impl ser::Error for SerError {
     fn custom<T: fmt::Display>(msg: T) -> Self {
-        SerFail::SerializeError(SerializeError(format!("{}", msg))).into()
-    }
-}
-
-impl<T> From<T> for SerError
-where
-    T: Into<SerFail>,
-{
-    fn from(t: T) -> Self {
-        SerError(t.into().compat())
+        SerError::SerializeError(format!("{}", msg)).into()
     }
 }
 //endregion
@@ -183,17 +119,17 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
         Ok(8)
     }
     fn serialize_f32(self, _v: f32) -> Result<Self::Ok, Self::Error> {
-        Err(SerFail::UnspecifiedType("f32").into())
+        Err(SerError::UnspecifiedType("f32").into())
     }
     fn serialize_f64(self, _v: f64) -> Result<Self::Ok, Self::Error> {
-        Err(SerFail::UnspecifiedType("f64").into())
+        Err(SerError::UnspecifiedType("f64").into())
     }
     fn serialize_char(self, _v: char) -> Result<Self::Ok, Self::Error> {
-        Err(SerFail::UnspecifiedType("char").into())
+        Err(SerError::UnspecifiedType("char").into())
     }
     fn serialize_str(self, s: &str) -> Result<Self::Ok, Self::Error> {
         if s.len() > u16::MAX as usize {
-            return Err(SerFail::StringTooLong.into());
+            return Err(SerError::StringTooLong.into());
         }
         let len = s.len() as u16;
         self.writer.write_u16::<LittleEndian>(len)?;
@@ -203,26 +139,26 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
     }
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
         if v.len() > BYTES_LEN_MAX as usize {
-            return Err(SerFail::BytesTooLong.into());
+            return Err(SerError::BytesTooLong.into());
         }
         self.writer.write_u32::<LittleEndian>(v.len() as u32)?;
         self.writer.write_all(v)?;
         Ok(v.len() as u32 + 4)
     }
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        Err(SerFail::UnspecifiedType("none").into())
+        Err(SerError::UnspecifiedType("none").into())
     }
     fn serialize_some<T: ?Sized>(self, _value: &T) -> Result<Self::Ok, Self::Error>
     where
         T: Serialize,
     {
-        Err(SerFail::UnspecifiedType("some").into())
+        Err(SerError::UnspecifiedType("some").into())
     }
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        Err(SerFail::UnspecifiedType("unit").into())
+        Err(SerError::UnspecifiedType("unit").into())
     }
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
-        Err(SerFail::UnspecifiedType("unit struct").into())
+        Err(SerError::UnspecifiedType("unit struct").into())
     }
     fn serialize_unit_variant(
         self,
@@ -230,7 +166,7 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
         _variant_index: u32,
         _variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        Err(SerFail::UnspecifiedType("unit variant").into())
+        Err(SerError::UnspecifiedType("unit variant").into())
     }
     fn serialize_newtype_struct<T: ?Sized>(
         self,
@@ -252,12 +188,12 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
     where
         T: Serialize,
     {
-        Err(SerFail::UnspecifiedType("newtype variant").into())
+        Err(SerError::UnspecifiedType("newtype variant").into())
     }
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
         if let Some(len) = len {
             if len > u16::MAX as usize {
-                return Err(SerFail::SeqTooLong.into());
+                return Err(SerError::SeqTooLong.into());
             }
         }
 
@@ -293,10 +229,10 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        Err(SerFail::UnspecifiedType("tuple variant").into())
+        Err(SerError::UnspecifiedType("tuple variant").into())
     }
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        Err(SerFail::UnspecifiedType("map").into())
+        Err(SerError::UnspecifiedType("map").into())
     }
     fn serialize_struct(
         self,
@@ -331,7 +267,7 @@ impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        Err(SerFail::UnspecifiedType("struct_variant").into())
+        Err(SerError::UnspecifiedType("struct_variant").into())
     }
 
     fn is_human_readable(&self) -> bool {
@@ -359,9 +295,9 @@ impl<'ser, W: 'ser + Write + Seek> SerializeSeq for CountingSequenceSerializer<'
         self.current_count = self
             .current_count
             .checked_add(1)
-            .ok_or(SerFail::SeqTooLong)?;
+            .ok_or(SerError::SeqTooLong)?;
         let amt = value.serialize(&mut *self.serializer)?;
-        self.byte_count = self.byte_count.checked_add(amt).ok_or(SerFail::TooBig)?;
+        self.byte_count = self.byte_count.checked_add(amt).ok_or(SerError::TooBig)?;
         Ok(())
     }
 
@@ -370,7 +306,7 @@ impl<'ser, W: 'ser + Write + Seek> SerializeSeq for CountingSequenceSerializer<'
         self.serializer.seek_back(2)?;
         self.current_count.serialize(&mut *self.serializer)?;
         self.serializer.seek_fwd(self.byte_count)?;
-        self.byte_count.checked_add(2).ok_or(SerFail::TooBig.into())
+        self.byte_count.checked_add(2).ok_or(SerError::TooBig.into())
     }
 }
 
@@ -424,15 +360,15 @@ impl<'ser, W: 'ser + Write + Seek> SerializeTuple for AccountingStructSerializer
         T: Serialize,
     {
         let amount = value.serialize(&mut *self.serializer)?;
-        self.byte_count = self.byte_count.checked_add(amount).ok_or(SerFail::TooBig)?;
+        self.byte_count = self.byte_count.checked_add(amount).ok_or(SerError::TooBig)?;
 
         // TODO: is it quicker to check during end instead?
         match self.size_behavior {
             StructSizeBehavior::Two if self.byte_count > STRUCT_SIZE_TWO_MAX => {
-                Err(SerFail::TooBig.into())
+                Err(SerError::TooBig.into())
             }
             StructSizeBehavior::DoubleTwo if self.byte_count > STRUCT_SIZE_DOUBLE_TWO_MAX => {
-                Err(SerFail::TooBig.into())
+                Err(SerError::TooBig.into())
             }
             _ => Ok(()),
         }

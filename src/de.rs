@@ -1,55 +1,39 @@
 //! Deserializers and deserializer convenience functions.
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use failure::{Compat, Fail};
 
 pub use serde::de::Deserialize;
 use serde::de::{self, DeserializeSeed, Deserializer, SeqAccess, Visitor};
-use std::error::Error;
+use thiserror::Error;
 use std::fmt;
 use std::io::{self, Cursor, Read};
 use std::string::FromUtf8Error;
 
 //region Error Handling
-/// A custom deserialize error.
-#[derive(Debug)]
-pub struct DeserializeError(String);
-
-impl fmt::Display for DeserializeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Error for DeserializeError {
-    fn description(&self) -> &str {
-        &self.0
-    }
-}
 
 /// A failure at the deserialization layer.
-#[derive(Fail, Debug)]
-pub enum DeFail {
+#[derive(Error, Debug)]
+pub enum DeError {
     /// A string was requested, but the data was not valid UTF-8.
-    #[fail(display = "Invalid UTF8: {}", _0)]
-    Utf8(#[cause] FromUtf8Error),
+    #[error("Invalid UTF8: {0}")]
+    Utf8(#[from] FromUtf8Error),
     /// An IO error occurred from the Read source.
-    #[fail(display = "IO Error: {}", _0)]
-    Io(#[cause] io::Error),
+    #[error("IO Error: {0}")]
+    Io(#[from] io::Error),
     /// An error came from the deserialize impl.
-    #[fail(display = "Deserialize Error: {}", _0)]
-    DeserializeError(#[cause] DeserializeError),
+    #[error("Deserialize Error: {0}")]
+    DeserializeError(String),
     /// The serde type is unspecified in 9p.
-    #[fail(display = "Type {} is unspecified in 9p", _0)]
+    #[error("Type {0} is unspecified in 9p")]
     UnspecifiedType(&'static str),
 }
 
-impl DeFail {
+impl DeError {
     /// Whether or not the contained error is an io::ErrorKind::UnexpectedEof.
     /// Useful since this can merely mean the client disconnected and is not
     /// necessarily an error.
     pub fn is_eof(&self) -> bool {
-        if let DeFail::Io(err) = self {
+        if let DeError::Io(err) = self {
             if let io::ErrorKind::UnexpectedEof = err.kind() {
                 true
             } else {
@@ -61,64 +45,12 @@ impl DeFail {
     }
 }
 
-impl From<io::Error> for DeFail {
-    fn from(src: io::Error) -> Self {
-        DeFail::Io(src)
-    }
-}
-
-impl From<FromUtf8Error> for DeFail {
-    fn from(src: FromUtf8Error) -> Self {
-        DeFail::Utf8(src)
-    }
-}
-
-/// A wrapper for a `DeFail` that has it implement `std::error::Error`.
-/// This is necessary because of the blanket impl of `Fail` for `std::error::Error`,
-/// and because `Deserializer` requires the error type to implement `std::error::Error`.
-pub struct DeError(pub Compat<DeFail>);
-
-impl fmt::Display for DeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        self.0.fmt(f)
-    }
-}
-
-impl fmt::Debug for DeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        self.0.fmt(f)
-    }
-}
-
-impl Error for DeError {
-    fn description(&self) -> &str {
-        self.0.description()
-    }
-
-    fn cause(&self) -> Option<&dyn Error> {
-        #[allow(deprecated)]
-        Error::cause(&self.0)
-    }
-
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Error::source(&self.0)
-    }
-}
-
 impl de::Error for DeError {
     fn custom<T: fmt::Display>(msg: T) -> Self {
-        DeFail::DeserializeError(DeserializeError(format!("{}", msg))).into()
+        DeError::DeserializeError(format!("{}", msg)).into()
     }
 }
 
-impl<T> From<T> for DeError
-where
-    T: Into<DeFail>,
-{
-    fn from(t: T) -> Self {
-        DeError(t.into().compat())
-    }
-}
 //endregion
 
 /// A read deserializer can deserialize the 9p data format from any type
@@ -134,7 +66,7 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     // for protocol sets? No need for Length::Zero since messages wouldn't go through
     // deserialize_struct directly
     fn deserialize_any<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        Err(DeFail::UnspecifiedType("any").into())
+        Err(DeError::UnspecifiedType("any").into())
     }
 
     // TODO: do bools actually appear anywhere in 9p?
@@ -187,20 +119,20 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("f32").into())
+        Err(DeError::UnspecifiedType("f32").into())
     }
     fn deserialize_f64<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("f64").into())
+        Err(DeError::UnspecifiedType("f64").into())
     }
 
     fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("char").into())
+        Err(DeError::UnspecifiedType("char").into())
     }
 
     fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -244,13 +176,13 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("option").into())
+        Err(DeError::UnspecifiedType("option").into())
     }
     fn deserialize_unit<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("unit").into())
+        Err(DeError::UnspecifiedType("unit").into())
     }
     fn deserialize_unit_struct<V>(
         self,
@@ -260,7 +192,7 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("unit_struct").into())
+        Err(DeError::UnspecifiedType("unit_struct").into())
     }
     fn deserialize_newtype_struct<V>(
         self,
@@ -303,7 +235,7 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("map").into())
+        Err(DeError::UnspecifiedType("map").into())
     }
     fn deserialize_struct<V>(
         self,
@@ -329,19 +261,19 @@ impl<'a, 'de: 'a, R: Read> Deserializer<'de> for &'a mut ReadDeserializer<R> {
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("enum").into())
+        Err(DeError::UnspecifiedType("enum").into())
     }
     fn deserialize_identifier<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("identifier").into())
+        Err(DeError::UnspecifiedType("identifier").into())
     }
     fn deserialize_ignored_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        Err(DeFail::UnspecifiedType("ignored_any").into())
+        Err(DeError::UnspecifiedType("ignored_any").into())
     }
 }
 

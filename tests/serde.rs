@@ -11,9 +11,9 @@ fn ser() -> WriteSerializer<BlackHoleWriter> {
     WriteSerializer::new(BlackHoleWriter)
 }
 
-fn expect_err<T: Serialize>(t: &T) -> SerFail {
+fn expect_err<T: Serialize>(t: &T) -> SerError {
     let mut serializer = ser();
-    t.serialize(&mut serializer).unwrap_err().0.into_inner()
+    t.serialize(&mut serializer).unwrap_err()
 }
 
 #[test]
@@ -22,7 +22,7 @@ fn overlong_seq_known() {
         .take(u16::MAX as usize + 1)
         .collect::<Vec<bool>>();
 
-    assert!(if let SerFail::SeqTooLong = expect_err(&long_seq) {
+    assert!(if let SerError::SeqTooLong = expect_err(&long_seq) {
         true
     } else {
         false
@@ -41,7 +41,7 @@ fn max_seq() {
 fn overlong_str() {
     let long_string = "x".repeat(u16::MAX as usize + 1);
 
-    assert!(if let SerFail::StringTooLong = expect_err(&long_string) {
+    assert!(if let SerError::StringTooLong = expect_err(&long_string) {
         true
     } else {
         false
@@ -64,10 +64,8 @@ fn overlong_bytes() {
     let mut serializer = ser();
 
     assert!(
-        if let SerFail::BytesTooLong = nine::common::serialize_bytes(&bytes, &mut serializer)
+        if let SerError::BytesTooLong = nine::common::serialize_bytes(&bytes, &mut serializer)
             .unwrap_err()
-            .0
-            .into_inner()
         {
             true
         } else {
