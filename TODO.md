@@ -2,8 +2,12 @@
 
 In decreasing order of importance:
 
+- [ ] simplify strings
+- [ ] switch to thiserror to simplify error handling (stopgap for custom)
 - [ ] figure out how/if to do datetime stuff
 - [ ] switch away from error handling libs in favor of a custom implementation
+    (or reconsider. is reimplimenting thiserrror worth it for the sake of fewer deps?)
+  
 
 Undecided importance:
 
