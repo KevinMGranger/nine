@@ -13,6 +13,7 @@ use std::{u16, u32};
 /// The maximum possible length of a byte array in 9p.
 pub const BYTES_LEN_MAX: u32 = u32::MAX - 8; // 4 for message size, 4 for byte length
 
+//region Error Handling
 /// A custom serialization error.
 #[derive(Debug)]
 pub struct SerializeError(String);
@@ -100,6 +101,7 @@ where
         SerError(t.into().compat())
     }
 }
+//endregion
 
 /// A serializer that works with any type that implements `Write` and `Seek`.
 #[derive(Debug)]

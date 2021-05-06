@@ -10,6 +10,7 @@ use std::fmt;
 use std::io::{self, Cursor, Read};
 use std::string::FromUtf8Error;
 
+//region Error Handling
 /// A custom deserialize error.
 #[derive(Debug)]
 pub struct DeserializeError(String);
@@ -118,9 +119,10 @@ where
         DeError(t.into().compat())
     }
 }
+//endregion
 
 /// A read deserializer can deserialize the 9p data format from any type
-/// that implemented `std::io::Read`.
+/// that implements `std::io::Read`.
 pub struct ReadDeserializer<R: Read>(pub R);
 
 type ORD = LittleEndian;
