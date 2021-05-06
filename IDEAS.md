@@ -29,6 +29,15 @@ mod tagged_types {
         #[serde(flatten)]
         pub version: super::core_types::Rversion,
     }
+
+    // or heck, even
+    pub struct Tagged<T> {
+        pub tag: u32,
+        #[serde(flatten)]
+        pub message: T
+    }
+
+    pub type Tattach = Tagged<super::core_types::Tattach>
 }
 
 // then a server could have
@@ -63,12 +72,14 @@ I forgot about deserialize_with.
 
 ## References
 
-How do we properly handle the strings within the message types?
+~~How do we properly handle the strings within the message types?~~
 
-Right now, they're all `Cow<'static, str>` which makes it easy for development.
-However, I don't think it should stay that way in the long run.
+~~Right now, they're all `Cow<'static, str>` which makes it easy for development.~~
+~~However, I don't think it should stay that way in the long run.~~
 
-Each message could/should be generic over the string type.
-I'd have to see how having that "hidden lifetime" works with the deserializer, though.
+~~Each message could/should be generic over the string type.~~
+~~I'd have to see how having that "hidden lifetime" works with the deserializer, though.~~
 
-And I'd need to look at how the serde magic works with generic stuff. Maybe I'd need to write my own functions for it.
+~~And I'd need to look at how the serde magic works with generic stuff. Maybe I'd need to write my own functions for it.~~
+
+This is far more cleverness than it's worth. Just make them `String`s.
