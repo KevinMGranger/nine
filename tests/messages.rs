@@ -6,6 +6,7 @@ use byteorder::{WriteBytesExt, LE};
 use nine::de::*;
 use nine::p2000::*;
 
+use nine::count::size_for;
 use nine::ser::*;
 use std::io::{Cursor, Read, Write};
 
@@ -80,6 +81,8 @@ fn version() {
         version: "9p2000".into(),
     };
 
+    assert_eq!(size_for(&expected_msg).unwrap(), 2 + 4 + 8);
+
     assert_eq!(actual_msg, expected_msg);
 
     let mut serializer = ser();
@@ -114,6 +117,8 @@ fn rauth() {
     let mut des = des(des_buf);
 
     let actual_msg: Rauth = Deserialize::deserialize(&mut des).unwrap();
+
+    assert_eq!(size_for(&expected_msg).unwrap(), 2 + 13);
 
     assert_eq!(actual_msg, expected_msg);
 
@@ -160,6 +165,8 @@ fn rstat() {
 
     let actual_msg: Rstat = Deserialize::deserialize(&mut des).unwrap();
 
+    assert_eq!(size_for(&expected_msg).unwrap(), 2 + 4 + stat_len(&expected_msg.stat) as u32);
+
     assert_eq!(actual_msg, expected_msg);
 
     expected_msg.serialize(&mut serializer).unwrap();
@@ -193,6 +200,8 @@ fn twalk() {
 
     let actual_msg: Twalk = Deserialize::deserialize(&mut des).unwrap();
 
+    assert_eq!(size_for(&expected_msg).unwrap(), 2+4+4+2+4+6);
+
     assert_eq!(actual_msg, expected_msg);
 
     let mut serializer = ser();
@@ -209,7 +218,7 @@ fn rread() {
     let mut expected_des_buf = Cursor::new(Vec::<u8>::new());
     let expected_msg = Rread {
         tag: 1,
-        data: "hello".to_string().into_bytes()
+        data: "hello".to_string().into_bytes(),
     };
     expected_des_buf.write_u16::<LE>(expected_msg.tag).unwrap();
     expected_des_buf.write_u32::<LE>(5).unwrap();
@@ -220,6 +229,8 @@ fn rread() {
     let mut des = des(expected_des_buf);
 
     let actual_msg = Rread::deserialize(&mut des).unwrap();
+
+    assert_eq!(size_for(&expected_msg).unwrap(), 2+4+5);
 
     assert_eq!(actual_msg, expected_msg);
 

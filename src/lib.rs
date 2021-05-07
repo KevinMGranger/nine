@@ -5,3 +5,4 @@ pub mod common;
 pub mod de;
 pub mod p2000;
 pub mod ser;
+pub mod count;
