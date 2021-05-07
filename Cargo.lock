@@ -13,14 +13,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7c3dd8985a7111efc5c80b44e23ecdd8c007de8ade3b96595387e812b957cf5"
 
 [[package]]
+name = "enum_dispatch"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44bead1f97ab8e54cd4f9205571b5c2c6f18abaa9193f9fdcf7fe09ddd4be313"
+dependencies = [
+ "once_cell",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "nine"
 version = "0.6.2"
 dependencies = [
  "bitflags",
  "byteorder",
+ "enum_dispatch",
  "serde",
  "thiserror",
 ]
+
+[[package]]
+name = "once_cell"
+version = "1.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af8b08b04175473088b46763e51ee54da5f9a164bc162f615b91bc179dbf15a3"
 
 [[package]]
 name = "proc-macro2"

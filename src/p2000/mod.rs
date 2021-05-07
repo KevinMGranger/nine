@@ -6,6 +6,7 @@ pub mod u;
 pub use crate::common::*;
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
+use enum_dispatch::enum_dispatch;
 
 /// The tag number used to represent that tags are irrelevant for this message.
 pub const NOTAG: u16 = !0u16;
@@ -307,4 +308,48 @@ message_type_ids! {
 
     Twstat = 126,
     Rwstat = 127
+}
+
+#[enum_dispatch(MessageTypeId)]
+enum Message {
+    Tversion(Tversion),
+    Rversion(Rversion),
+
+    Tauth(Tauth),
+    Rauth(Rauth),
+
+    Tattach(Tattach),
+    Rattach(Rattach),
+
+    Rerror(Rerror),
+
+    Tflush(Tflush),
+    Rflush(Rflush),
+
+    Twalk(Twalk),
+    Rwalk(Rwalk),
+
+    Topen(Topen),
+    Ropen(Ropen),
+
+    Tcreate(Tcreate),
+    Rcreate(Rcreate),
+
+    Tread(Tread),
+    Rread(Rread),
+
+    Twrite(Twrite),
+    Rwrite(Rwrite),
+
+    Tclunk(Tclunk),
+    Rclunk(Rclunk),
+
+    Tremove(Tremove),
+    Rremove(Rremove),
+
+    Tstat(Tstat),
+    Rstat(Rstat),
+
+    Twstat(Twstat),
+    Rwstat(Rwstat),
 }

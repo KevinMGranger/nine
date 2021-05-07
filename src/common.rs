@@ -52,12 +52,15 @@ where
     serializer.serialize_bytes(t.as_ref())
 }
 
-/// An implementer of MessageTypeId has a u8 ID.
 pub trait MessageTypeId {
-    const MSG_TYPE_ID: u8;
+    fn msg_type_id(&self) -> u8;
+}
 
-    /// Get self's ID.
-    /// Does not need to be implemented.
+pub trait ConstMessageTypeId {
+    const MSG_TYPE_ID: u8;
+}
+
+impl<T: ConstMessageTypeId> MessageTypeId for T {
     fn msg_type_id(&self) -> u8 {
         Self::MSG_TYPE_ID
     }
@@ -67,18 +70,18 @@ pub trait MessageTypeId {
 /// Implements the MessageTypeId trait for the given type.
 macro_rules! message_type_id {
     ($mtype:ty, $id:expr) => {
-        impl $crate::common::MessageTypeId for $mtype {
-            const MSG_TYPE_ID: u8 = $id;
-        }
+        
     };
 }
 
 /// Allows you to write message type IDs all at once, similar
 /// to how they'd be written in in Fcall.h.
 macro_rules! message_type_ids {
-    {$($mtype:ty = $id:expr),*} => {
+    {$($mtype:ident = $id:expr),*} => {
         $(
-            message_type_id!($mtype, $id);
+            impl $crate::common::ConstMessageTypeId for $mtype {
+                const MSG_TYPE_ID: u8 = $id;
+            }
         )*
     }
 }
