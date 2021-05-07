@@ -1,11 +1,11 @@
 //! Message types and other constructs for 9p protocols based on 9p2000.
 
-pub mod u;
 pub mod l;
+pub mod u;
 
 pub use crate::common::*;
-use serde::{Deserialize, Serialize};
 use bitflags::bitflags;
+use serde::{Deserialize, Serialize};
 
 /// The tag number used to represent that tags are irrelevant for this message.
 pub const NOTAG: u16 = !0u16;
@@ -129,191 +129,142 @@ impl Stat {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Tversion {
-    pub tag: u16,
-    pub msize: u32,
-    pub version: String,
+messages! {
+    #[derive(Debug, PartialEq, Eq)]
+     Tversion {
+        msize: u32,
+        version: String,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rversion {
+        msize: u32,
+        version: String,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Tauth {
+        afid: u32,
+        uname: String,
+        aname: String,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rauth {
+        aqid: Qid,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rerror {
+        ename: String,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Tflush {
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rflush {
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Tattach {
+        fid: u32,
+        afid: u32,
+        uname: String,
+        aname: String,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rattach {
+        qid: Qid,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Twalk {
+        fid: u32,
+        newfid: u32,
+        wname: Vec<String>,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rwalk {
+        wqid: Vec<Qid>,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Topen {
+        fid: u32,
+        mode: OpenMode,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Ropen {
+        qid: Qid,
+        iounit: u32,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Tcreate {
+        fid: u32,
+        name: String,
+        perm: FileMode,
+        mode: OpenMode,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rcreate {
+        qid: Qid,
+        iounit: u32,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Tread {
+        fid: u32,
+        offset: u64,
+        count: u32,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rread {
+        #[serde(
+            serialize_with = "serialize_bytes",
+            deserialize_with = "deserialize_owned_bytes"
+        )]
+        data: Vec<u8>,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Twrite {
+        fid: u32,
+        offset: u64,
+        #[serde(
+            serialize_with = "serialize_bytes",
+            deserialize_with = "deserialize_owned_bytes"
+        )]
+        data: Vec<u8>,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rwrite {
+        count: u32,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Tclunk {
+        fid: u32,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rclunk {
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Tremove {
+        fid: u32,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rremove {
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Tstat {
+        fid: u32,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rstat {
+        stat: Stat,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Twstat {
+        fid: u32,
+        stat: Stat,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+     Rwstat {
+    }
+
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rversion {
-    pub tag: u16,
-    pub msize: u32,
-    pub version: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Tauth {
-    pub tag: u16,
-    pub afid: u32,
-    pub uname: String,
-    pub aname: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rauth {
-    pub tag: u16,
-    pub aqid: Qid,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rerror {
-    pub tag: u16,
-    pub ename: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Tflush {
-    pub tag: u16,
-    pub oldtag: u16,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rflush {
-    pub tag: u16,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Tattach {
-    pub tag: u16,
-    pub fid: u32,
-    pub afid: u32,
-    pub uname: String,
-    pub aname: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rattach {
-    pub tag: u16,
-    pub qid: Qid,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Twalk {
-    pub tag: u16,
-    pub fid: u32,
-    pub newfid: u32,
-    pub wname: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rwalk {
-    pub tag: u16,
-    pub wqid: Vec<Qid>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Topen {
-    pub tag: u16,
-    pub fid: u32,
-    pub mode: OpenMode,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Ropen {
-    pub tag: u16,
-    pub qid: Qid,
-    pub iounit: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Tcreate {
-    pub tag: u16,
-    pub fid: u32,
-    pub name: String,
-    pub perm: FileMode,
-    pub mode: OpenMode,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rcreate {
-    pub tag: u16,
-    pub qid: Qid,
-    pub iounit: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Tread {
-    pub tag: u16,
-    pub fid: u32,
-    pub offset: u64,
-    pub count: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rread {
-    pub tag: u16,
-    #[serde(
-        serialize_with = "serialize_bytes",
-        deserialize_with = "deserialize_owned_bytes"
-    )]
-    pub data: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Twrite {
-    pub tag: u16,
-    pub fid: u32,
-    pub offset: u64,
-    #[serde(
-        serialize_with = "serialize_bytes",
-        deserialize_with = "deserialize_owned_bytes"
-    )]
-    pub data: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rwrite {
-    pub tag: u16,
-    pub count: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Tclunk {
-    pub tag: u16,
-    pub fid: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rclunk {
-    pub tag: u16,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Tremove {
-    pub tag: u16,
-    pub fid: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rremove {
-    pub tag: u16,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Tstat {
-    pub tag: u16,
-    pub fid: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rstat {
-    pub tag: u16,
-    pub stat: Stat,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Twstat {
-    pub tag: u16,
-    pub fid: u32,
-    pub stat: Stat,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Rwstat {
-    pub tag: u16,
-}
+pub use tagged::*;
 
 message_type_ids! {
     Tversion = 100,

@@ -35,7 +35,6 @@ where
     }
 }
 
-
 /// A deserialize function that produces a Vec<u8> using the correct deserializer method.
 pub fn deserialize_owned_bytes<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
@@ -81,5 +80,48 @@ macro_rules! message_type_ids {
         $(
             message_type_id!($mtype, $id);
         )*
+    }
+}
+
+///Allows messages to be declared while
+macro_rules! messages {
+    { 
+        $(
+    $(#[$structmeta:meta])*
+    $name:ident {
+        $(
+        $(#[$fieldmeta:meta])*
+        $field:ident: $type:ty,
+        )*
+    }
+    )* } => {
+        pub mod untagged {
+            use super::*;
+            $(
+            $(#[$structmeta])*
+            #[derive(serde::Deserialize, serde::Serialize)]
+            pub struct $name {
+                $(
+                $(#[$fieldmeta])*
+                pub $field: $type,
+                )*
+            }
+            )*
+        }
+
+        pub mod tagged {
+            use super::*;
+            $(
+            $(#[$structmeta])*
+            #[derive(serde::Deserialize, serde::Serialize)]
+            pub struct $name {
+                pub tag: u16,
+                $(
+                $(#[$fieldmeta])*
+                pub $field: $type,
+                )*
+            }
+            )*
+        }
     }
 }
