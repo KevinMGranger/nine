@@ -83,6 +83,11 @@ macro_rules! message_type_ids {
     }
 }
 
+pub trait Taggable {
+    type Tagged;
+    fn tag(self, tag: u16) -> Self::Tagged;
+}
+
 ///Allows messages to be declared while
 macro_rules! messages {
     { 
@@ -95,20 +100,6 @@ macro_rules! messages {
         )*
     }
     )* } => {
-        pub mod untagged {
-            use super::*;
-            $(
-            $(#[$structmeta])*
-            #[derive(serde::Deserialize, serde::Serialize)]
-            pub struct $name {
-                $(
-                $(#[$fieldmeta])*
-                pub $field: $type,
-                )*
-            }
-            )*
-        }
-
         pub mod tagged {
             use super::*;
             $(
@@ -120,6 +111,33 @@ macro_rules! messages {
                 $(#[$fieldmeta])*
                 pub $field: $type,
                 )*
+            }
+            )*
+        }
+
+        pub mod untagged {
+            use super::*;
+            $(
+            $(#[$structmeta])*
+            #[derive(serde::Deserialize, serde::Serialize)]
+            pub struct $name {
+                $(
+                $(#[$fieldmeta])*
+                pub $field: $type,
+                )*
+            }
+
+            impl $crate::common::Taggable for $name {
+                type Tagged = super::tagged::$name;
+
+                fn tag(self, tag: u16) -> Self::Tagged {
+                    Self::Tagged {
+                        tag,
+                        $(
+                            $field: self.$field,
+                        )*
+                    }
+                }
             }
             )*
         }
