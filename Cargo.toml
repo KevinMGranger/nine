@@ -1,2 +1,2 @@
 [workspace]
-members = ["nine", "nine-memfs", "nine-server-tokio"]
+members = ["nine", "memfs-sync", "server-tokio"]
