@@ -1,4 +1,4 @@
-use super::common::*;
+use super::common::{self, *};
 use byteorder::{WriteBytesExt, LittleEndian};
 use serde::ser::*;
 use std::io::{self, Seek, SeekFrom, Write};
@@ -47,6 +47,7 @@ impl<W: Write + Seek> WriteSerializer<W> {
     }
 }
 
+type Unimplemented = common::Unimplemented<u32, SerErrorWithIo>;
 impl<'ser, W: 'ser + Write + Seek> Serializer for &'ser mut WriteSerializer<W> {
     type Ok = u32;
     type Error = SerErrorWithIo;
@@ -314,10 +315,6 @@ impl<'ser, W: 'ser + Write + Seek> SerializeStruct for AccountingStructSerialize
         SerializeTuple::end(self)
     }
 }
-
-const STRUCT_SIZE_TWO_MAX: u32 = u16::MAX as u32 - 2;
-const STRUCT_SIZE_DOUBLE_TWO_MAX: u32 = u16::MAX as u32 - 4;
-
 impl<'ser, W: 'ser + Write + Seek> SerializeTuple for AccountingStructSerializer<'ser, W> {
     type Ok = u32;
     type Error = SerErrorWithIo;
@@ -377,61 +374,3 @@ impl<'ser, W: 'ser + Write + Seek> SerializeTupleStruct for AccountingStructSeri
         SerializeTuple::end(self)
     }
 }
-
-//region Unimplemented
-/// Stand-in code for types of serialization that will never happen
-/// because the types are unspecified.
-pub enum Unimplemented {}
-
-impl SerializeMap for Unimplemented {
-    type Ok = u32;
-    type Error = SerErrorWithIo;
-    fn serialize_key<T: ?Sized>(&mut self, _key: &T) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unreachable!()
-    }
-    fn serialize_value<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unreachable!()
-    }
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl SerializeTupleVariant for Unimplemented {
-    type Ok = u32;
-    type Error = SerErrorWithIo;
-    fn serialize_field<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unreachable!()
-    }
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl SerializeStructVariant for Unimplemented {
-    type Ok = u32;
-    type Error = SerErrorWithIo;
-    fn serialize_field<T: ?Sized>(
-        &mut self,
-        _key: &'static str,
-        _value: &T,
-    ) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unreachable!()
-    }
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-//endregion

@@ -5,11 +5,14 @@ use std::io::{Cursor, Seek, SeekFrom};
 mod common;
 pub use common::*;
 
-mod write_seek;
+pub mod write_seek;
 pub use write_seek::*;
 
-mod count;
+pub mod count;
 pub use count::*;
+
+pub mod bytes;
+pub use self::bytes::*;
 
 //region Functions
 // TODO: this is mainly used for converting stat calls.

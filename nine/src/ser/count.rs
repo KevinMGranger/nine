@@ -1,4 +1,5 @@
-pub use super::common::*;
+
+use super::common::{self, *};
 use serde::ser::*;
 
 #[derive(Debug)]
@@ -6,6 +7,7 @@ struct SizeCounterSerializer {
     in_stat: bool, // if in a rstat/twstat message, double-prefix the size
 }
 
+type Unimplemented = common::Unimplemented<u32, SerError>;
 impl<'ser> Serializer for &'ser mut SizeCounterSerializer {
     type Ok = u32;
     type Error = SerError; // TODO overflow

@@ -1,4 +1,4 @@
-use serde::ser;
+use serde::ser::{self, *};
 pub use serde::ser::{Serialize, Serializer};
 use std::fmt::Display;
 use std::io;
@@ -68,7 +68,7 @@ impl ser::Error for SerErrorWithIo {
 //endregion
 
 /// Tells a sub-serializer how to handle size-prefixing a struct.
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub(crate) enum StructSizeBehavior {
     /// A stat is being serialized to be sent for a directory read.
     /// Prefix its two-bytes size.
@@ -80,5 +80,80 @@ pub(crate) enum StructSizeBehavior {
     None,
 }
 
+impl StructSizeBehavior {
+    pub(crate) fn offset(&self) -> usize {
+        match self {
+            StructSizeBehavior::DoubleTwo => 4,
+            StructSizeBehavior::Two => 2,
+            StructSizeBehavior::None => 0,
+        }
+    }
+}
+
 /// The maximum possible length of a byte array in 9p.
-pub const BYTES_LEN_MAX: u32 = u32::MAX - 11; // 4 for message size, 1 for type, 2 for tag, 4 for byte length
+pub(crate) const BYTES_LEN_MAX: u32 = u32::MAX - 11; // 4 for message size, 1 for type, 2 for tag, 4 for byte length
+pub(crate) const STRUCT_SIZE_TWO_MAX: u32 = u16::MAX as u32 - 2;
+pub(crate) const STRUCT_SIZE_DOUBLE_TWO_MAX: u32 = u16::MAX as u32 - 4;
+
+//region Unimplemented
+/// Stand-in code for types of serialization that will never happen
+/// because the types are unspecified.
+pub struct Unimplemented<Ok, Err> {
+    _ok: std::marker::PhantomData<Ok>,
+    _err: std::marker::PhantomData<Err>,
+    _never: Never,
+}
+pub enum Never {}
+
+impl<Ok, Err> SerializeMap for Unimplemented<Ok, Err> {
+    type Ok = Ok;
+    type Error = Err;
+    fn serialize_key<T: ?Sized>(&mut self, _key: &T) -> Result<(), Self::Error>
+    where
+        T: Serialize,
+    {
+        unreachable!()
+    }
+    fn serialize_value<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
+    where
+        T: Serialize,
+    {
+        unreachable!()
+    }
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        unreachable!()
+    }
+}
+
+impl<Ok, Err> SerializeTupleVariant for Unimplemented<Ok, Err> {
+    type Ok = Ok;
+    type Error = Err;
+    fn serialize_field<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
+    where
+        T: Serialize,
+    {
+        unreachable!()
+    }
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        unreachable!()
+    }
+}
+
+impl<Ok, Err> SerializeStructVariant for Unimplemented<Ok, Err>{
+    type Ok = Ok;
+    type Error = Err;
+    fn serialize_field<T: ?Sized>(
+        &mut self,
+        _key: &'static str,
+        _value: &T,
+    ) -> Result<(), Self::Error>
+    where
+        T: Serialize,
+    {
+        unreachable!()
+    }
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        unreachable!()
+    }
+}
+//endregion
