@@ -1,0 +1,21 @@
+[package]
+name = "nine-memfs"
+version = "0.2.0"
+edition = "2018"
+description = "A simple in-memory 9p filesystem."
+authors = ["Kevin M Granger <git@kevinmgranger.me>"]
+license = "MPL-2.0"
+readme = "README.md"
+repository = "https://github.com/KevinMGranger/nine-memfs-rs"
+categories = ["filesystem"]
+
+[package.metadata.workspaces]
+independent = true
+
+[badges.maintenance]
+status = "experimental"
+
+[dependencies]
+nine = { version = "0.7.*", path = "../nine" }
+thiserror = "1.0.24"
+anyhow = "1.0.40"

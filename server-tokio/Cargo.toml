@@ -1,0 +1,19 @@
+[package]
+name = "nine-server-tokio"
+version = "0.1.0"
+authors = ["Kevin M Granger <git@kevinmgranger.me>"]
+edition = "2018"
+
+[package.metadata.workspaces]
+independent = true
+
+[badges.maintenance]
+status = "experimental"
+
+[dependencies]
+nine = { version = "0.7.*", path = "../nine" }
+thiserror = "1.0.24"
+anyhow = "1.0.40"
+tokio = { version = "1.5.0", features = ["full"] }
+async-trait = "0.1.50"
+tokio-util = { version = "0.6.6", features = ["codec"] }
