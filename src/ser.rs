@@ -1,13 +1,14 @@
 //! Serializers and serializer convenience functions.
 
-use byteorder::{LittleEndian, WriteBytesExt};
+use super::count::{size_for, CountError};
 pub use crate::common::*;
+use byteorder::{LittleEndian, WriteBytesExt};
 pub use serde::ser::Serialize;
 use serde::ser::{self, *};
-use thiserror::Error;
 use std::fmt;
 use std::io::{self, Cursor, Seek, SeekFrom, Write};
 use std::{u16, u32};
+use thiserror::Error;
 
 /// The maximum possible length of a byte array in 9p.
 pub const BYTES_LEN_MAX: u32 = u32::MAX - 8; // 4 for message size, 4 for byte length
@@ -30,6 +31,8 @@ pub enum SerError {
     TooBig,
     #[error("Type {0} is unspecified in 9p")]
     UnspecifiedType(&'static str),
+    #[error("{0}")]
+    Unsupported(&'static str),
 }
 
 impl ser::Error for SerError {
@@ -37,8 +40,23 @@ impl ser::Error for SerError {
         SerError::SerializeError(format!("{}", msg)).into()
     }
 }
+
+impl From<CountError> for SerError {
+    fn from(err: CountError) -> Self {
+        use SerError::*;
+        match err {
+            CountError::SerializeError(x) => SerializeError(x),
+            CountError::StringTooLong => StringTooLong,
+            CountError::BytesTooLong => BytesTooLong,
+            CountError::SeqTooLong => SeqTooLong,
+            CountError::TooBig => TooBig,
+            CountError::UnspecifiedType(x) => UnspecifiedType(x),
+        }
+    }
+}
 //endregion
 
+//region Write Serializer
 /// A serializer that works with any type that implements `Write` and `Seek`.
 #[derive(Debug)]
 pub struct WriteSerializer<W: Write + Seek> {
@@ -306,7 +324,9 @@ impl<'ser, W: 'ser + Write + Seek> SerializeSeq for CountingSequenceSerializer<'
         self.serializer.seek_back(2)?;
         self.current_count.serialize(&mut *self.serializer)?;
         self.serializer.seek_fwd(self.byte_count)?;
-        self.byte_count.checked_add(2).ok_or(SerError::TooBig.into())
+        self.byte_count
+            .checked_add(2)
+            .ok_or(SerError::TooBig.into())
     }
 }
 
@@ -360,7 +380,10 @@ impl<'ser, W: 'ser + Write + Seek> SerializeTuple for AccountingStructSerializer
         T: Serialize,
     {
         let amount = value.serialize(&mut *self.serializer)?;
-        self.byte_count = self.byte_count.checked_add(amount).ok_or(SerError::TooBig)?;
+        self.byte_count = self
+            .byte_count
+            .checked_add(amount)
+            .ok_or(SerError::TooBig)?;
 
         // TODO: is it quicker to check during end instead?
         match self.size_behavior {
@@ -408,7 +431,9 @@ impl<'ser, W: 'ser + Write + Seek> SerializeTupleStruct for AccountingStructSeri
         SerializeTuple::end(self)
     }
 }
+//endregion
 
+//region Unimplemented
 /// Stand-in code for types of serialization that will never happen
 /// because the types are unspecified.
 pub enum Unimplemented {}
@@ -464,7 +489,9 @@ impl SerializeStructVariant for Unimplemented {
         unreachable!()
     }
 }
+//endregion
 
+//region Functions
 // TODO: this is mainly used for converting stat calls.
 // It should take a ref to the writer, which would be the existing buffer on the dir.
 //
@@ -554,3 +581,4 @@ pub fn append_vec<T: Serialize, V: AsMut<Vec<u8>>>(t: &T, mut vec: V) -> Result<
     writer.seek(SeekFrom::Start(pos as u64)).unwrap();
     into_write_seeker(t, writer)
 }
+//endregion
