@@ -1,5 +1,7 @@
-use super::*;
-use ::bytes::{BufMut, BytesMut};
+use bytes::{BufMut, BytesMut};
+use super::common::*;
+use serde::ser::*;
+use std::io::{self, Seek, SeekFrom, Write};
 
 #[derive(Debug)]
 struct BytesSerializer {
