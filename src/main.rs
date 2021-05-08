@@ -35,20 +35,20 @@ impl<Stream: Write + Read> Client<Stream> {
         }
     }
 
-    fn send_msg<T: Serialize + MessageTypeId>(&mut self, t: &T) -> Result<(), SerError> {
+    fn send_msg<T: Serialize + MessageTypeId>(&mut self, t: &T) -> Result<(), SerErrorWithIo> {
         self.msg_buf.truncate(0);
         let amt = into_vec(&t, &mut self.msg_buf)?;
 
         assert!(self.msize >= amt);
         self.stream.write_u32::<LittleEndian>(amt + 5)?;
-        self.stream.write_u8(<T as MessageTypeId>::MSG_TYPE_ID)?;
+        self.stream.write_u8(t.msg_type_id())?;
         Ok(self.stream.write_all(&self.msg_buf[0..amt as usize])?)
     }
 
-    fn read_msg<'de, T: Deserialize<'de> + MessageTypeId>(&mut self) -> Result<T, DeError> {
+    fn read_msg<'de, T: Deserialize<'de> + ConstMessageTypeId>(&mut self) -> Result<T, DeError> {
         let _size: u32 = self.read_a()?;
         let mtype: u8 = self.read_a()?;
-        assert_eq!(mtype, <T as MessageTypeId>::MSG_TYPE_ID);
+        assert_eq!(mtype, <T as ConstMessageTypeId>::MSG_TYPE_ID);
 
         self.read_a()
     }

@@ -2,16 +2,16 @@ extern crate nine;
 
 mod util;
 
+use crate::util::BlackHoleWriter;
 use nine::ser::*;
 use std::iter::repeat;
 use std::{u16, u32};
-use crate::util::BlackHoleWriter;
 
 fn ser() -> WriteSerializer<BlackHoleWriter> {
     WriteSerializer::new(BlackHoleWriter)
 }
 
-fn expect_err<T: Serialize>(t: &T) -> SerError {
+fn expect_err<T: Serialize>(t: &T) -> SerErrorWithIo {
     let mut serializer = ser();
     t.serialize(&mut serializer).unwrap_err()
 }
@@ -22,11 +22,13 @@ fn overlong_seq_known() {
         .take(u16::MAX as usize + 1)
         .collect::<Vec<bool>>();
 
-    assert!(if let SerError::SeqTooLong = expect_err(&long_seq) {
-        true
-    } else {
-        false
-    });
+    assert!(
+        if let SerError::SeqTooLong = expect_err(&long_seq).unwrap_ser_error() {
+            true
+        } else {
+            false
+        }
+    );
 }
 
 #[test]
@@ -41,11 +43,13 @@ fn max_seq() {
 fn overlong_str() {
     let long_string = "x".repeat(u16::MAX as usize + 1);
 
-    assert!(if let SerError::StringTooLong = expect_err(&long_string) {
-        true
-    } else {
-        false
-    })
+    assert!(
+        if let SerError::StringTooLong = expect_err(&long_string).unwrap_ser_error() {
+            true
+        } else {
+            false
+        }
+    )
 }
 
 #[test]
@@ -64,8 +68,9 @@ fn overlong_bytes() {
     let mut serializer = ser();
 
     assert!(
-        if let SerError::BytesTooLong = nine::common::serialize_bytes(&bytes, &mut serializer)
+        if let SerError::BytesTooLong = nine::ser::serialize_bytes(&bytes, &mut serializer)
             .unwrap_err()
+            .unwrap_ser_error()
         {
             true
         } else {
@@ -80,5 +85,5 @@ fn max_bytes() {
     let bytes = vec![1u8; u32::MAX as usize - 8];
     let mut serializer = ser();
 
-    nine::common::serialize_bytes(&bytes, &mut serializer).unwrap();
+    nine::ser::serialize_bytes(&bytes, &mut serializer).unwrap();
 }

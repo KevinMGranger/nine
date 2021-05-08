@@ -20,7 +20,7 @@ pub struct Ropenfd {
     pub unixfd: u32,
 }
 
-message_type_ids! {
+crate::message_type_ids! {
     Topenfd = 98,
     Ropenfd = 99
 }

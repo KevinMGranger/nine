@@ -3,10 +3,11 @@
 pub mod l;
 pub mod u;
 
-pub use crate::common::*;
+use super::{de::*, ser::*};
+pub use crate::message::{ConstMessageTypeId, MessageTypeId, Taggable};
 use bitflags::bitflags;
-use serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
+use serde::{Deserialize, Serialize};
 
 /// The tag number used to represent that tags are irrelevant for this message.
 pub const NOTAG: u16 = !0u16;
@@ -130,7 +131,7 @@ impl Stat {
     }
 }
 
-messages! {
+crate::messages! {
     #[derive(Debug, PartialEq, Eq)]
      Tversion {
         msize: u32,
@@ -267,7 +268,7 @@ messages! {
 
 pub use tagged::*;
 
-message_type_ids! {
+crate::message_type_ids! {
     Tversion = 100,
     Rversion = 101,
 
@@ -311,7 +312,7 @@ message_type_ids! {
 }
 
 #[enum_dispatch(MessageTypeId)]
-enum Message {
+pub enum Message {
     Tversion(Tversion),
     Rversion(Rversion),
 
