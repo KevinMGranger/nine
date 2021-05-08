@@ -2,7 +2,6 @@ pub use nine::p2000::tagged::{Tattach, Tversion, Tauth, Twalk, Tstat, Topen, Tre
 pub use nine::p2000::untagged::{Rversion, Rattach, Rauth, Rwalk, Rstat, Ropen, Rread};
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
-use nine::common::MessageTypeId;
 use nine::de::*;
 use nine::p2000::*;
 use nine::ser::*;
