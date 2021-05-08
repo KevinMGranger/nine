@@ -2,6 +2,15 @@
 
 In decreasing order of importance:
 
+- [ ] make it work with Bytes
+  - If I'm going stateless, how will `in_stat` work?
+    - Twstat / Rstat serialize_struct passes a serializer with in_stat = true
+    - StructSerializer passes that along with any child calls
+- [ ] how do we leave room for optimizations?
+  -  for example, alternative versions of Rread or Twrite that can use preexisting BytesMuts
+  -  if we have 1:1 message type to implementation that won't work
+  -  do we just have alternate versions of the protocol?
+  -  how could we eventually do async sendfile?
 - [x] simplify strings
 - [x] switch to thiserror to simplify error handling (stopgap for custom)
 - [ ] figure out how/if to do datetime stuff
