@@ -1,5 +1,4 @@
-//! Tests relating to the message types.
-
+///! Tests relating to message type serialization.
 extern crate byteorder;
 extern crate nine;
 use byteorder::{WriteBytesExt, LE};
@@ -7,16 +6,9 @@ use nine::de::*;
 use nine::p2000::*;
 
 use nine::ser::*;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Read, Seek, Write};
 
-fn des<R: Read>(r: R) -> ReadDeserializer<R> {
-    ReadDeserializer(r)
-}
-
-fn ser() -> WriteSerializer<Cursor<Vec<u8>>> {
-    WriteSerializer::new(Cursor::new(Vec::<u8>::new()))
-}
-
+//region test helpers
 fn write_qid<W: WriteBytesExt>(bytes: &mut W, qid: &Qid) {
     bytes.write_u8(qid.file_type.bits()).unwrap();
     bytes.write_u32::<LE>(qid.version).unwrap();
@@ -59,123 +51,146 @@ fn write_stat<W: Write + WriteBytesExt>(bytes: &mut W, s: &Stat) {
     write_str(bytes, &s.gid);
     write_str(bytes, &s.muid);
 }
+//endregion
 
-#[test]
-fn version() {
+macro_rules! message_test {
+    ($name:ident, $size:expr) => {
+        paste! {
+            #[test]
+            fn [<$name _size>]() {
+                assert_eq!(size_for(&[<$name _msg>]).unwrap(), $size);
+            }
+
+            #[test]
+            fn [<$name _ser_vec>]() {
+                assert_eq!(
+                    [<$name _bytes>]().into_inner(),
+                    into_bytes(&[<$name _msg>]).unwrap()
+                );
+            }
+
+            #[test]
+            fn [<$name _de_read>]() {
+                assert_eq!(version_msg, from_reader([<$name _bytes>]().unwrap()));
+            }
+        }
+    };
+}
+// region version
+fn version_bytes() -> Cursor<Vec<u8>> {
     let mut des_buf = Cursor::new(Vec::<u8>::new());
     des_buf.write_u16::<LE>(NOTAG).unwrap();
     des_buf.write_u32::<LE>(u16::max_value() as u32).unwrap();
     write_str(&mut des_buf, "9p2000");
     des_buf.set_position(0);
+    des_buf
+}
 
-    let expected_ser_buf = des_buf.clone().into_inner();
-
-    let mut des = des(des_buf);
-
-    let actual_msg: Tversion = Deserialize::deserialize(&mut des).unwrap();
-
-    let expected_msg = Tversion {
+fn version_msg() -> Tversion {
+    return Tversion {
         tag: NOTAG,
         msize: u16::max_value() as u32,
         version: "9p2000".into(),
     };
-
-    assert_eq!(size_for(&expected_msg).unwrap(), 2 + 4 + 8);
-
-    assert_eq!(actual_msg, expected_msg);
-
-    let mut serializer = ser();
-
-    expected_msg.serialize(&mut serializer).unwrap();
-
-    let actual_ser_buf = serializer.writer.into_inner();
-
-    assert_eq!(actual_ser_buf, expected_ser_buf);
 }
 
 #[test]
-fn rauth() {
-    let mut des_buf = Cursor::new(Vec::<u8>::new());
-    let tag = 1;
-    let file_type = FileType::AUTH;
-    let version = 1;
-    let path = 0;
-    let qid = Qid {
-        file_type,
-        version,
-        path,
-    };
-    des_buf.write_u16::<LE>(tag).unwrap();
-    write_qid(&mut des_buf, &qid);
-    let expected_msg = Rauth { tag, aqid: qid };
+fn version_size() {
+    assert_eq!(size_for(&version_msg()).unwrap(), 2 + 4 + 8);
+}
 
+#[test]
+fn version_ser_vec() {
+    assert_eq!(
+        version_bytes().into_inner(),
+        into_bytes(&version_msg()).unwrap()
+    );
+}
+
+#[test]
+fn version_de_read() {
+    assert_eq!(version_msg(), from_reader(version_bytes()).unwrap());
+}
+//endregion
+
+// region rauth
+const rauth_qid: Qid = Qid {
+    file_type: FileType::AUTH,
+    version: 1,
+    path: 0,
+};
+fn rauth_msg() -> Rauth {
+    return Rauth {
+        tag: 1,
+        aqid: rauth_qid,
+    };
+}
+
+fn rauth_bytes() -> Cursor<Vec<u8>> {
+    let mut des_buf = Cursor::new(Vec::<u8>::new());
+    des_buf.write_u16::<LE>(rauth_msg().tag).unwrap();
+    write_qid(&mut des_buf, &rauth_qid);
     des_buf.set_position(0);
 
-    let expected_ser_buf = des_buf.clone().into_inner();
-
-    let mut des = des(des_buf);
-
-    let actual_msg: Rauth = Deserialize::deserialize(&mut des).unwrap();
-
-    assert_eq!(size_for(&expected_msg).unwrap(), 2 + 13);
-
-    assert_eq!(actual_msg, expected_msg);
-
-    let mut serializer = ser();
-
-    expected_msg.serialize(&mut serializer).unwrap();
-
-    let actual_ser_buf = serializer.writer.into_inner();
-
-    assert_eq!(actual_ser_buf, expected_ser_buf);
+    des_buf
 }
 
 #[test]
-fn rstat() {
-    let mut bytes = Cursor::new(Vec::<u8>::new());
-    let tag = 1;
-    let stat = Stat {
-        type_: 1,
-        dev: 2,
-        qid: Qid {
-            file_type: FileType::FILE,
-            version: 3,
-            path: 4,
-        },
-        mode: FileMode::OWNER_READ | FileMode::OWNER_WRITE,
-        atime: 5,
-        mtime: 6,
-        length: 512,
-        name: "hello".into(),
-        uid: "glenda".into(),
-        gid: "glenda".into(),
-        muid: "glenda".into(),
-    };
+fn rauth_size() {
+    assert_eq!(size_for(&rauth_msg()).unwrap(), 2 + 13)
+}
 
-    bytes.write_u16::<LE>(tag).unwrap();
-    write_stat(&mut bytes, &stat);
-    let expected_msg = Rstat { tag, stat };
-    bytes.set_position(0);
-    let expected_ser_buf = bytes.clone().into_inner();
-
-    let mut des = des(bytes);
-
-    let mut serializer = ser();
-
-    let actual_msg: Rstat = Deserialize::deserialize(&mut des).unwrap();
-
+#[test]
+fn rauth_ser_vec() {
     assert_eq!(
-        size_for(&expected_msg).unwrap(),
-        2 + 4 + stat_len(&expected_msg.stat) as u32
+        rauth_bytes().into_inner(),
+        into_bytes(&rauth_msg()).unwrap()
     );
+}
 
-    assert_eq!(actual_msg, expected_msg);
+#[test]
+fn rauth_de_read() {
+    assert_eq!(rauth_msg(), from_reader(rauth_bytes()).unwrap());
+}
+//endregion
 
-    expected_msg.serialize(&mut serializer).unwrap();
+// region rstat
+fn rstat_msg() -> Rstat {
+    return Rstat {
+        tag: 1,
+        stat: Stat {
+            type_: 1,
+            dev: 2,
+            qid: Qid {
+                file_type: FileType::FILE,
+                version: 3,
+                path: 4,
+            },
+            mode: FileMode::OWNER_READ | FileMode::OWNER_WRITE,
+            atime: 5,
+            mtime: 6,
+            length: 512,
+            name: "hello".into(),
+            uid: "glenda".into(),
+            gid: "glenda".into(),
+            muid: "glenda".into(),
+        },
+    };
+}
 
-    let actual_ser_buf = serializer.writer.into_inner();
-
-    assert_eq!(actual_ser_buf, expected_ser_buf);
+fn rstat_bytes() -> Cursor<Vec<u8>> {
+    let mut bytes = Cursor::new(Vec::<u8>::new());
+    bytes.write_u16::<LE>(rstat_msg().tag).unwrap();
+    write_stat(&mut bytes, &rstat_msg().stat);
+    bytes.set_position(0);
+    bytes
+}
+#[test]
+fn rstat_size() {
+    assert_eq!(
+        size_for(&rstat_msg()).unwrap(),
+        2 + 4 + stat_len(&rstat_msg().stat) as u32
+    );
 }
 
 #[test]
@@ -198,19 +213,14 @@ fn twalk() {
 
     expected_des_buf.set_position(0);
     let expected_ser_buf = expected_des_buf.clone().into_inner();
-    let mut des = des(expected_des_buf);
 
-    let actual_msg: Twalk = Deserialize::deserialize(&mut des).unwrap();
+    let actual_msg: Twalk = from_reader(expected_des_buf).unwrap();
 
     assert_eq!(size_for(&expected_msg).unwrap(), 2 + 4 + 4 + 2 + 4 + 6);
 
     assert_eq!(actual_msg, expected_msg);
 
-    let mut serializer = ser();
-
-    expected_msg.serialize(&mut serializer).unwrap();
-
-    let actual_ser_buf = serializer.writer.into_inner();
+    let actual_ser_buf = into_bytes(&expected_msg).unwrap();
 
     assert_eq!(actual_ser_buf, expected_ser_buf);
 }
@@ -228,17 +238,12 @@ fn rread() {
     expected_des_buf.set_position(0);
 
     let expected_ser_buf = expected_des_buf.clone().into_inner();
-    let mut des = des(expected_des_buf);
 
-    let actual_msg = Rread::deserialize(&mut des).unwrap();
+    let actual_msg: Rread = from_reader(expected_des_buf).unwrap();
 
     assert_eq!(size_for(&expected_msg).unwrap(), 2 + 4 + 5);
 
     assert_eq!(actual_msg, expected_msg);
 
-    let mut serializer = ser();
-
-    expected_msg.serialize(&mut serializer).unwrap();
-
-    assert_eq!(expected_ser_buf, serializer.writer.into_inner());
+    assert_eq!(expected_ser_buf, into_bytes(&expected_msg).unwrap());
 }

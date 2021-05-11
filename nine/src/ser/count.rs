@@ -305,64 +305,6 @@ impl<'ser> SerializeTupleStruct for AccountingStructSerializer<'ser> {
     }
 }
 
-//region Unimplemented
-/// Stand-in code for types of serialization that will never happen
-/// because the types are unspecified.
-enum Unimplemented {}
-
-impl SerializeMap for Unimplemented {
-    type Ok = u32;
-    type Error = SerError;
-    fn serialize_key<T: ?Sized>(&mut self, _key: &T) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unreachable!()
-    }
-    fn serialize_value<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unreachable!()
-    }
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl SerializeTupleVariant for Unimplemented {
-    type Ok = u32;
-    type Error = SerError;
-    fn serialize_field<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unreachable!()
-    }
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl SerializeStructVariant for Unimplemented {
-    type Ok = u32;
-    type Error = SerError;
-    fn serialize_field<T: ?Sized>(
-        &mut self,
-        _key: &'static str,
-        _value: &T,
-    ) -> Result<(), Self::Error>
-    where
-        T: Serialize,
-    {
-        unreachable!()
-    }
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-//endregion
-
 pub fn size_for<T: Serialize>(t: &T) -> Result<u32, SerError> {
     let mut counter = SizeCounterSerializer { in_stat: false };
     t.serialize(&mut counter)

@@ -1,5 +1,3 @@
-extern crate nine;
-
 mod server;
 mod utils;
 

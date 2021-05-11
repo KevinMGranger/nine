@@ -41,39 +41,39 @@ impl Serializer for BytesSerializer {
     type SerializeStruct = AccountingStructSerializer;
     type SerializeStructVariant = Unimplemented;
 
-    fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
+    fn serialize_bool(mut self, v: bool) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u8(v as u8);
         Ok(self)
     }
-    fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
+    fn serialize_i8(mut self, v: i8) -> Result<Self::Ok, Self::Error> {
         self.buf.put_i8(v);
         Ok(self)
     }
-    fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
+    fn serialize_i16(mut self, v: i16) -> Result<Self::Ok, Self::Error> {
         self.buf.put_i16_le(v);
         Ok(self)
     }
-    fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
+    fn serialize_i32(mut self, v: i32) -> Result<Self::Ok, Self::Error> {
         self.buf.put_i32_le(v);
         Ok(self)
     }
-    fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
+    fn serialize_i64(mut self, v: i64) -> Result<Self::Ok, Self::Error> {
         self.buf.put_i64_le(v);
         Ok(self)
     }
-    fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
+    fn serialize_u8(mut self, v: u8) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u8(v);
         Ok(self)
     }
-    fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
+    fn serialize_u16(mut self, v: u16) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u16_le(v);
         Ok(self)
     }
-    fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
+    fn serialize_u32(mut self, v: u32) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u32_le(v);
         Ok(self)
     }
-    fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
+    fn serialize_u64(mut self, v: u64) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u64_le(v);
         Ok(self)
     }
@@ -86,7 +86,7 @@ impl Serializer for BytesSerializer {
     fn serialize_char(self, _v: char) -> Result<Self::Ok, Self::Error> {
         Err(SerError::UnspecifiedType("char").into())
     }
-    fn serialize_str(self, s: &str) -> Result<Self::Ok, Self::Error> {
+    fn serialize_str(mut self, s: &str) -> Result<Self::Ok, Self::Error> {
         if s.len() > u16::MAX as usize {
             return Err(SerError::StringTooLong.into());
         }
@@ -96,7 +96,7 @@ impl Serializer for BytesSerializer {
 
         Ok(self)
     }
-    fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
+    fn serialize_bytes(mut self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
         if v.len() > BYTES_LEN_MAX as usize {
             return Err(SerError::BytesTooLong.into());
         }
@@ -187,7 +187,7 @@ impl Serializer for BytesSerializer {
         Err(SerError::UnspecifiedType("map").into())
     }
     fn serialize_struct(
-        self,
+        mut self,
         name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
@@ -232,7 +232,7 @@ pub struct CountingSequenceSerializer {
 }
 
 impl CountingSequenceSerializer {
-    fn new(ser: BytesSerializer) -> Self {
+    fn new(mut ser: BytesSerializer) -> Self {
         let before = ser.buf.split();
         let count_bytes = ser.buf.split_to(2);
         CountingSequenceSerializer {
@@ -261,7 +261,7 @@ impl SerializeSeq for CountingSequenceSerializer {
         Ok(())
     }
 
-    fn end(self) -> Result<Self::Ok, Self::Error> {
+    fn end(mut self) -> Result<Self::Ok, Self::Error> {
         self.count_bytes.put_u16_le(self.current_count);
         let mut buf = self.before;
         buf.unsplit(self.count_bytes);
@@ -284,7 +284,7 @@ pub struct AccountingStructSerializer {
 }
 
 impl AccountingStructSerializer {
-    fn new(ser: BytesSerializer, size_behavior: StructSizeBehavior) -> Self {
+    fn new(mut ser: BytesSerializer, size_behavior: StructSizeBehavior) -> Self {
         let before = ser.buf.split();
         let size_bytes = ser.buf.split_to(size_behavior.offset());
         Self {
@@ -334,7 +334,7 @@ impl SerializeTuple for AccountingStructSerializer {
 
         Ok(())
     }
-    fn end(self) -> Result<Self::Ok, Self::Error> {
+    fn end(mut self) -> Result<Self::Ok, Self::Error> {
         // TODO max size checking (or in element?)
         match self.size_behavior {
             StructSizeBehavior::None => {}

@@ -105,7 +105,7 @@ pub struct Unimplemented<Ok, Err> {
 }
 pub enum Never {}
 
-impl<Ok, Err> SerializeMap for Unimplemented<Ok, Err> {
+impl<Ok, Err: ser::Error> SerializeMap for Unimplemented<Ok, Err> {
     type Ok = Ok;
     type Error = Err;
     fn serialize_key<T: ?Sized>(&mut self, _key: &T) -> Result<(), Self::Error>
@@ -125,7 +125,7 @@ impl<Ok, Err> SerializeMap for Unimplemented<Ok, Err> {
     }
 }
 
-impl<Ok, Err> SerializeTupleVariant for Unimplemented<Ok, Err> {
+impl<Ok, Err: ser::Error> SerializeTupleVariant for Unimplemented<Ok, Err> {
     type Ok = Ok;
     type Error = Err;
     fn serialize_field<T: ?Sized>(&mut self, _value: &T) -> Result<(), Self::Error>
@@ -139,7 +139,7 @@ impl<Ok, Err> SerializeTupleVariant for Unimplemented<Ok, Err> {
     }
 }
 
-impl<Ok, Err> SerializeStructVariant for Unimplemented<Ok, Err>{
+impl<Ok, Err: ser::Error> SerializeStructVariant for Unimplemented<Ok, Err>{
     type Ok = Ok;
     type Error = Err;
     fn serialize_field<T: ?Sized>(

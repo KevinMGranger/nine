@@ -11,7 +11,9 @@ pub use write_seek::*;
 pub mod count;
 pub use count::*;
 
+#[cfg(feature = "bytes")]
 pub mod bytes;
+#[cfg(feature = "bytes")]
 pub use self::bytes::*;
 
 //region Functions

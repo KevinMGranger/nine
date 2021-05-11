@@ -1,3 +1,4 @@
+///! Serialization related edge cases.
 extern crate nine;
 
 mod util;
