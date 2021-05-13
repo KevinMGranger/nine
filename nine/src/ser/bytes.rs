@@ -1,14 +1,15 @@
 use super::common::{self, *};
 use super::count::size_for;
+use crate::utils::Errorful;
 use bytes::{BufMut, BytesMut};
 use serde::ser::*;
 
 pub fn into_new_bytes<T: Serialize>(t: &T) -> Result<BytesMut, SerError> {
-    let ser = BytesSerializer {
+    let mut ser = BytesSerializer {
         buf: BytesMut::with_capacity(size_for(t)? as usize),
         in_stat: false,
     };
-    Ok(t.serialize(ser)?.buf)
+    t.serialize(&mut ser).map(|_| ser.buf)
 }
 
 pub fn into_existing_bytes<T: Serialize>(t: &T, buf: &mut BytesMut) -> Result<(), SerError> {
@@ -17,65 +18,64 @@ pub fn into_existing_bytes<T: Serialize>(t: &T, buf: &mut BytesMut) -> Result<()
         buf: buf.split_off(buf.len()),
         in_stat: false,
     };
-    ser = t.serialize(ser)?;
+    let res = t.serialize(&mut ser);
     buf.unsplit(ser.buf);
-    Ok(())
+    res
 }
 
-#[derive(Debug)]
 struct BytesSerializer {
     buf: BytesMut,
     in_stat: bool, // if in a rstat/twstat message, double-prefix the size
 }
 
-type Unimplemented = common::Unimplemented<BytesSerializer, SerError>;
-impl Serializer for BytesSerializer {
-    type Ok = BytesSerializer;
+type Unimplemented = common::Unimplemented<(), SerError>;
+impl<'ser> Serializer for &'ser mut BytesSerializer {
+    type Ok = ();
     type Error = SerError;
 
-    type SerializeSeq = CountingSequenceSerializer;
-    type SerializeTuple = AccountingStructSerializer;
-    type SerializeTupleStruct = AccountingStructSerializer;
+    type SerializeSeq = CountingSequenceSerializer<'ser>;
+    type SerializeTuple = AccountingStructSerializer<'ser>;
+    type SerializeTupleStruct = AccountingStructSerializer<'ser>;
     type SerializeTupleVariant = Unimplemented;
     type SerializeMap = Unimplemented;
-    type SerializeStruct = AccountingStructSerializer;
+    type SerializeStruct = AccountingStructSerializer<'ser>;
     type SerializeStructVariant = Unimplemented;
 
     fn serialize_bool(mut self, v: bool) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u8(v as u8);
-        Ok(self)
+        Ok(())
     }
     fn serialize_i8(mut self, v: i8) -> Result<Self::Ok, Self::Error> {
         self.buf.put_i8(v);
-        Ok(self)
+        Ok(())
     }
     fn serialize_i16(mut self, v: i16) -> Result<Self::Ok, Self::Error> {
         self.buf.put_i16_le(v);
-        Ok(self)
+        Ok(())
     }
     fn serialize_i32(mut self, v: i32) -> Result<Self::Ok, Self::Error> {
         self.buf.put_i32_le(v);
-        Ok(self)
+        Ok(())
     }
     fn serialize_i64(mut self, v: i64) -> Result<Self::Ok, Self::Error> {
         self.buf.put_i64_le(v);
-        Ok(self)
+        Ok(())
     }
     fn serialize_u8(mut self, v: u8) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u8(v);
-        Ok(self)
+        Ok(())
     }
     fn serialize_u16(mut self, v: u16) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u16_le(v);
-        Ok(self)
+        Ok(())
     }
     fn serialize_u32(mut self, v: u32) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u32_le(v);
-        Ok(self)
+        Ok(())
     }
     fn serialize_u64(mut self, v: u64) -> Result<Self::Ok, Self::Error> {
         self.buf.put_u64_le(v);
-        Ok(self)
+        Ok(())
     }
     fn serialize_f32(self, _v: f32) -> Result<Self::Ok, Self::Error> {
         Err(SerError::UnspecifiedType("f32").into())
@@ -94,7 +94,7 @@ impl Serializer for BytesSerializer {
         self.buf.put_u16_le(len);
         self.buf.put(s.as_bytes());
 
-        Ok(self)
+        Ok(())
     }
     fn serialize_bytes(mut self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
         if v.len() > BYTES_LEN_MAX as usize {
@@ -102,7 +102,7 @@ impl Serializer for BytesSerializer {
         }
         self.buf.put_u32_le(v.len() as u32);
         self.buf.put(v);
-        Ok(self)
+        Ok(())
     }
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
         Err(SerError::UnspecifiedType("none").into())
@@ -221,83 +221,118 @@ impl Serializer for BytesSerializer {
     }
 }
 
-/// A sequence serializer that counts how many items it
-/// gets and then prefixes with the 2-byte count.
-#[derive(Debug)]
-pub struct CountingSequenceSerializer {
-    current_count: u16,
-    before: BytesMut,
-    count_bytes: BytesMut,
-    current: BytesSerializer,
+struct BeforeBytes {
+    before_all: BytesMut,
+    size_or_count: BytesMut,
 }
 
-impl CountingSequenceSerializer {
-    fn new(mut ser: BytesSerializer) -> Self {
-        let before = ser.buf.split();
-        let count_bytes = ser.buf.split_to(2);
-        CountingSequenceSerializer {
-            current_count: 0,
-            current: ser,
-            count_bytes,
-            before,
-        }
+impl BeforeBytes {
+    fn unsplit(self, ser: &mut BytesSerializer) {
+        let mut buf = self.before_all;
+        buf.unsplit(self.size_or_count);
+        let rest = std::mem::replace(&mut ser.buf, BytesMut::new());
+        buf.unsplit(rest);
+        ser.buf = buf;
     }
 }
 
-impl SerializeSeq for CountingSequenceSerializer {
-    type Ok = BytesSerializer;
+/// A sequence serializer that counts how many items it
+/// gets and then prefixes with the 2-byte count.
+pub struct CountingSequenceSerializer<'ser> {
+    count: u16,
+    before_current_bytes: Option<BeforeBytes>,
+    current: &'ser mut BytesSerializer,
+}
+
+impl<'ser> CountingSequenceSerializer<'ser> {
+    fn new(ser: &'ser mut BytesSerializer) -> Self {
+        let before_all = ser.buf.split();
+        let count_bytes = ser.buf.split_to(2);
+        CountingSequenceSerializer {
+            count: 0,
+            current: ser,
+            before_current_bytes: Some(BeforeBytes {
+                before_all,
+                size_or_count: count_bytes,
+            }),
+        }
+    }
+    fn count_bytes(&mut self) -> &mut BytesMut {
+        &mut self.before_current_bytes.as_mut().unwrap().size_or_count
+    }
+
+    fn unsplit(&mut self) {
+        self.before_current_bytes
+            .take()
+            .unwrap()
+            .unsplit(&mut self.current);
+    }
+}
+
+impl<'ser> SerializeSeq for CountingSequenceSerializer<'ser> {
+    type Ok = ();
     type Error = SerError;
 
     fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
-        self.current_count = self
-            .current_count
+        self.count = self
+            .count
             .checked_add(1)
-            .ok_or(SerError::SeqTooLong)?;
+            .ok_or(SerError::SeqTooLong)
+            .if_err(|| self.unsplit())?;
+
         //TODO: do we need to keep track of in_struct ourselves here?
-        self.current = value.serialize(self.current)?;
+        value
+            .serialize(&mut *self.current)
+            .if_err(|| self.unsplit())?;
         Ok(())
     }
 
     fn end(mut self) -> Result<Self::Ok, Self::Error> {
-        self.count_bytes.put_u16_le(self.current_count);
-        let mut buf = self.before;
-        buf.unsplit(self.count_bytes);
-        buf.unsplit(self.current.buf);
-
-        Ok(BytesSerializer {
-            buf,
-            ..self.current
-        })
+        let count = self.count;
+        self.count_bytes().put_u16_le(count);
+        self.unsplit();
+        Ok(())
     }
 }
 
 /// A struct serializer that counts the byte size of everything serialized so far.
-#[derive(Debug)]
-pub struct AccountingStructSerializer {
-    before: BytesMut,
+pub struct AccountingStructSerializer<'ser> {
     size_behavior: StructSizeBehavior,
-    size_bytes: BytesMut,
-    current: BytesSerializer,
+    before_current_bytes: Option<BeforeBytes>,
+    current: &'ser mut BytesSerializer,
 }
 
-impl AccountingStructSerializer {
-    fn new(mut ser: BytesSerializer, size_behavior: StructSizeBehavior) -> Self {
-        let before = ser.buf.split();
+impl<'ser> AccountingStructSerializer<'ser> {
+    fn new(ser: &'ser mut BytesSerializer, size_behavior: StructSizeBehavior) -> Self {
+        let before_all = ser.buf.split();
         let size_bytes = ser.buf.split_to(size_behavior.offset());
         Self {
-            before,
             size_behavior,
-            size_bytes,
+            before_current_bytes: Some(BeforeBytes {
+                before_all,
+                size_or_count: size_bytes,
+            }),
             current: ser,
         }
     }
+
+    fn size_bytes(&mut self) -> &mut BytesMut {
+        &mut self.before_current_bytes.as_mut().unwrap().size_or_count
+    }
+
+    fn unsplit(&mut self) {
+        self.before_current_bytes
+            .take()
+            .unwrap()
+            .unsplit(&mut self.current)
+    }
 }
 
-impl SerializeStruct for AccountingStructSerializer {
-    type Ok = BytesSerializer;
+impl<'ser> SerializeStruct for AccountingStructSerializer<'ser> {
+    type Ok = ();
     type Error = SerError;
     fn serialize_field<T: ?Sized>(
         &mut self,
@@ -316,22 +351,14 @@ impl SerializeStruct for AccountingStructSerializer {
 
 // size[4] Rstat tag[2] stat[n]
 
-impl SerializeTuple for AccountingStructSerializer {
-    type Ok = BytesSerializer;
+impl<'ser> SerializeTuple for AccountingStructSerializer<'ser> {
+    type Ok = ();
     type Error = SerError;
     fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
-        let in_stat = self.current.in_stat;
-
-        let returned_current = value.serialize(self.current)?;
-
-        self.current = BytesSerializer {
-            in_stat,
-            ..returned_current
-        };
-
+        value.serialize(&mut *self.current).if_err(|| self.unsplit())?;
         Ok(())
     }
     fn end(mut self) -> Result<Self::Ok, Self::Error> {
@@ -340,28 +367,23 @@ impl SerializeTuple for AccountingStructSerializer {
             StructSizeBehavior::None => {}
             StructSizeBehavior::Two => {
                 let byte_count = self.current.buf.len();
-                self.size_bytes.put_u16_le(byte_count as u16);
+                self.size_bytes().put_u16_le(byte_count as u16);
             }
             StructSizeBehavior::DoubleTwo => {
                 let byte_count = self.current.buf.len();
-                self.size_bytes.put_u16_le(byte_count as u16 + 2);
-                self.size_bytes.put_u16_le(byte_count as u16);
+                self.size_bytes().put_u16_le(byte_count as u16 + 2);
+                self.size_bytes().put_u16_le(byte_count as u16);
             }
         }
 
-        let mut buf = self.before;
-        buf.unsplit(self.size_bytes);
-        buf.unsplit(self.current.buf);
+        self.unsplit();
 
-        Ok(BytesSerializer {
-            buf,
-            ..self.current
-        })
+        Ok(())
     }
 }
 
-impl SerializeTupleStruct for AccountingStructSerializer {
-    type Ok = BytesSerializer;
+impl<'ser> SerializeTupleStruct for AccountingStructSerializer<'ser> {
+    type Ok = ();
     type Error = SerError;
     fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where

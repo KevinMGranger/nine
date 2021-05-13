@@ -73,6 +73,14 @@ macro_rules! message_test {
             fn [<$name _de_read>]() {
                 assert_eq!([<$name _msg>](), from_reader([<$name _bytes>]()).unwrap());
             }
+            #[cfg(feature = "bytes")]
+            #[test]
+            fn [<$name _ser_bytes>]() {
+                assert_eq!(
+                    [<$name _bytes>]().into_inner(),
+                    into_new_bytes(&[<$name _msg>]()).unwrap()
+                );
+            }
         }
     };
 }
