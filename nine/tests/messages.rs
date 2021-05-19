@@ -53,37 +53,26 @@ fn write_stat<W: Write + WriteBytesExt>(bytes: &mut W, s: &Stat) {
 }
 //endregion
 
-macro_rules! message_test {
-    ($name:ident, $size:expr) => {
-        ::paste::paste! {
-            #[test]
-            fn [<$name _size>]() {
-                assert_eq!(size_for(&[<$name _msg>]()).unwrap(), $size);
-            }
-
-            #[test]
-            fn [<$name _ser_vec>]() {
-                assert_eq!(
-                    [<$name _bytes>]().into_inner(),
-                    into_bytes(&[<$name _msg>]()).unwrap()
-                );
-            }
-
-            #[test]
-            fn [<$name _de_read>]() {
-                assert_eq!([<$name _msg>](), from_reader([<$name _bytes>]()).unwrap());
-            }
-            #[cfg(feature = "bytes")]
-            #[test]
-            fn [<$name _ser_bytes>]() {
-                assert_eq!(
-                    [<$name _bytes>]().into_inner(),
-                    into_new_bytes(&[<$name _msg>]()).unwrap()
-                );
-            }
-        }
-    };
+//region common
+fn test_size<T: Serialize>(msg: &T, size: u32) {
+    assert_eq!(size_for(msg).unwrap(), size);
 }
+
+fn test_ser_vec<T: Serialize>(msg: &T, bytes: Vec<u8>) {
+    assert_eq!(bytes, into_bytes(msg).unwrap());
+}
+
+fn test_de_read<'a, T: PartialEq + std::fmt::Debug + Deserialize<'a>>(msg: &T, bytes: Vec<u8>) {
+    let actual: T = from_bytes(bytes).unwrap();
+    assert_eq!(*msg, actual);
+}
+
+#[cfg(feature = "bytes")]
+fn test_ser_bytes<T: Serialize>(msg: &T, bytes: Vec<u8>) {
+    assert_eq!(bytes, into_new_bytes(msg).unwrap());
+}
+//endregion
+
 // region version
 fn version_bytes() -> Cursor<Vec<u8>> {
     let mut des_buf = Cursor::new(Vec::<u8>::new());
@@ -102,7 +91,23 @@ fn version_msg() -> Tversion {
     };
 }
 
-message_test!(version, 2 + 4 + 8);
+#[test]
+fn version_size() {
+    test_size(&version_msg(), 2 + 4 + 8);
+}
+#[test]
+fn version_ser_vec() {
+    test_ser_vec(&version_msg(), version_bytes().into_inner());
+}
+#[test]
+fn version_de_read() {
+    test_de_read(&version_msg(), version_bytes().into_inner());
+}
+#[test]
+#[cfg(feature = "bytes")]
+fn version_ser_bytes() {
+    test_ser_bytes(&version_msg(), version_bytes().into_inner());
+}
 //endregion
 
 // region rauth
@@ -126,7 +131,23 @@ fn rauth_bytes() -> Cursor<Vec<u8>> {
     des_buf
 }
 
-message_test!(rauth, 2 + 13);
+#[test]
+fn rauth_size() {
+    test_size(&rauth_msg(), 2 + 13);
+}
+#[test]
+fn rauth_ser_vec() {
+    test_ser_vec(&rauth_msg(), rauth_bytes().into_inner());
+}
+#[test]
+fn rauth_de_read() {
+    test_de_read(&rauth_msg(), rauth_bytes().into_inner());
+}
+#[test]
+#[cfg(feature = "bytes")]
+fn rauth_ser_bytes() {
+    test_ser_bytes(&rauth_msg(), rauth_bytes().into_inner());
+}
 //endregion
 
 // region rstat
@@ -161,7 +182,23 @@ fn rstat_bytes() -> Cursor<Vec<u8>> {
     bytes
 }
 
-message_test!(rstat, 2 + 4 + stat_len(&rstat_msg().stat) as u32);
+#[test]
+fn rstat_size() {
+    test_size(&rstat_msg(), 2 + 4 + stat_len(&rstat_msg().stat) as u32);
+}
+#[test]
+fn rstat_ser_vec() {
+    test_ser_vec(&rstat_msg(), rstat_bytes().into_inner());
+}
+#[test]
+fn rstat_de_read() {
+    test_de_read(&rstat_msg(), rstat_bytes().into_inner());
+}
+#[test]
+#[cfg(feature = "bytes")]
+fn rstat_ser_bytes() {
+    test_ser_bytes(&rstat_msg(), rstat_bytes().into_inner());
+}
 //endregion
 fn twalk_msg() -> Twalk {
     return Twalk {
@@ -189,7 +226,23 @@ fn twalk_bytes() -> Cursor<Vec<u8>> {
     expected_des_buf
 }
 
-message_test!(twalk, 2 + 4 + 4 + 2 + 4 + 6);
+#[test]
+fn twalk_size() {
+    test_size(&twalk_msg(), 2 + 4 + 4 + 2 + 4 + 6);
+}
+#[test]
+fn twalk_ser_vec() {
+    test_ser_vec(&twalk_msg(), twalk_bytes().into_inner());
+}
+#[test]
+fn twalk_de_read() {
+    test_de_read(&twalk_msg(), twalk_bytes().into_inner());
+}
+#[test]
+#[cfg(feature = "bytes")]
+fn twalk_ser_bytes() {
+    test_ser_bytes(&twalk_msg(), twalk_bytes().into_inner());
+}
 
 //region rread
 fn rread_msg() -> Rread {
@@ -210,5 +263,21 @@ fn rread_bytes() -> Cursor<Vec<u8>> {
     expected_des_buf
 }
 
-message_test!(rread, 2 + 4 + 5);
+#[test]
+fn rread_size() {
+    test_size(&rread_msg(), 2 + 4 + 5);
+}
+#[test]
+fn rread_ser_vec() {
+    test_ser_vec(&rread_msg(), rread_bytes().into_inner());
+}
+#[test]
+fn rread_de_read() {
+    test_de_read(&rread_msg(), rread_bytes().into_inner());
+}
+#[test]
+#[cfg(feature = "bytes")]
+fn rread_ser_bytes() {
+    test_ser_bytes(&rread_msg(), rread_bytes().into_inner());
+}
 //endregion
